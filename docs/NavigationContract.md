@@ -2,6 +2,8 @@
 
 This document describes the reusable navigation layer, independently of the demo account/credential flow. Swift 5, iOS 17, one UINavigationController and main-actor isolation remain the constraints.
 
+The bounded-queue/alert-lifetime revision passed the user's focused and full Simulator runs: **118 declarations / 136 expanded runs**, no failures/skips/recorded runtime warnings. The implementation and verification record are committed together after baseline `a9b7788`; see the [policy plan](plans/queue-and-alert-policy.md) and [verification evidence](Verification.md) for scope and remaining release gates.
+
 ## Authority and ownership
 
 UIKit's viewControllers is the authoritative push stack. Route and Back-policy metadata describes those exact controller identities; it is retained until transitions finish because a cancelled pop can restore a temporarily removed controller. Feature-modal metadata is a separate presentation dimension, not another push stack.
@@ -16,9 +18,11 @@ Controllers submitted for push/presentation must be detached from other containe
 |---|---|
 | push | Append a detached supported controller if its logical route is not already in the stack. Equal-route pushes are benign no-ops; they do not pop to an earlier screen. A controller cannot be reused under another route while already owned |
 | pop / popTo | Respect the current Back policy at submission and execution; root/current-target requests are no-ops. Missing popTo destinations report rejection |
-| replaceStack / setRoot | Explicit flow authority that bypasses ordinary Back restrictions. Validate nonempty unique route/controller identities before discarding waiting work; finish the current transition, dismiss the router's modal and install the new stack without animation |
+| replaceStack / setRoot | Explicit flow authority bypassing ordinary Back restrictions and capacity rejection. Validate first, clear obsolete waiting navigation, cancel flow alerts, finish the current transition and clean up the feature modal before nonanimated replacement. Global notices survive; an already visible global notice finishes first |
 | present / dismiss | Serialize the feature-modal lifecycle independently of push/pop. A second presentation while a feature modal exists is rejected; dismiss then present is the explicit replacement sequence |
 | cancelPendingNavigation | Release waiting commands/controllers. Do not cancel or pretend to finish UIKit's current transition. Later authorized requests remain usable |
+| showAlert | Return typed AlertAdmission. Scope plus semantic key defines duplicates; invalid configurations and capacity rejection own no callback. Accepted user actions complete at most once |
+| cancelAlerts | Administrative cancellation of every scope, including the exact owned native presentation. Used at reset/stop/disconnect |
 | setSceneActive | Forward this scene's actual activity. Windowed push/pop/present/dismiss requests wait while inactive. Root setup/replacement without a modal remains available before activation. If modal cleanup is required, its dismissal and the replacement both wait for activation. Detached stack setup uses nonanimated operations |
 
 Route equality is a product decision: equal values mean the same logical destination. The demo's small Route enum is an example. A consuming project must include stable entity/context identifiers where multiple detail destinations are valid and must choose push versus popTo explicitly. Do not use a single placeholder route for every entity.
@@ -33,11 +37,27 @@ Visible nonanimated root replacements also own the navigation lifecycle. If the 
 
 Navigation and presentation each own a completion flag. One dimension's callback cannot release the other's active transition. Stack changes beneath an existing modal are nonanimated; the router does not wait for an invisible navigation animation. User-driven completed/cancelled pops and adaptive modal dismissal use their UIKit lifecycle callbacks.
 
-An accepted root replacement invalidates obsolete waiting navigation and alert requests. It does not interrupt an active UIKit animation. With an inactive scene and a visible modal, the entire dismissal/replacement sequence waits for activation; the router does not dismiss the modal in the background merely to replace the root. Stop/reset invokes waiting-command invalidation before cancelling alerts, so alert teardown cannot drain old routes.
+An accepted root replacement invalidates obsolete waiting navigation and flow alerts. Global notices remain owned or queued. It does not interrupt an active UIKit animation. With an inactive scene and a visible feature modal, dismissal/replacement waits for activation. With an active global notice, replacement additionally waits for its acknowledgment or explicit administrative cancellation. Stop/reset invalidates waiting navigation before cancelling every alert scope.
+
+## Capacity, fairness and alert scope
+
+| Owner | Default bound / policy |
+|---|---|
+| Router | 32 ordinary waiting slots, plus 2 slots usable only by blocked pushes in the single active protected flow; at most 34 waiting commands. Running transition is separate. Ordinary capacity is configurable, minimum 2 |
+| Flow completion | Root replacement installs its complete at-most-two-command cleanup/replacement prefix before alert cleanup can resume the runner. It cannot be rejected because ordinary waiting work filled the queue |
+| Business processor | 8 waiting plus 1 active intent. Duplicates precede capacity checks; reject newest distinct overflow. Original active authentication context is unchanged |
+| Startup / reset staging | Each holds at most 8 distinct already-parsed intents, never raw URL arrays. Staging is storage, not reservation of business admission. Initial connection URLs precede live startup arrivals; handoff uses normal admission and generic overflow feedback. Whole batches enter the processor before callbacks can append newer work |
+| Alert queue | 9 waiting plus 1 active; global notices may occupy at most 8 waiting slots, reserving one for flow recovery. Configurable total waiting bound, minimum 2 |
+
+Default reservations fit this demo's single protected redeem/onboarding flow. A consuming application must size/adapt them for its own maximum outstanding protected commands. Capacity bounds retained entries, not arbitrary memory in controller payloads. Accepted queued work remains FIFO; explicit flow replacement/cancellation may invalidate obsolete work. Overflow rejects the newest request and releases its controller/callback references.
+
+After at most 4 non-root navigation commands, the runner yields to an eligible waiting alert. Root replacement and its cleanup retain precedence. An active native transition, missing presenter or inactive scene still controls eligibility. A registered native transition completion reserves the yield; more navigation cannot overtake that callback. This is per-queue FIFO with explicit arbitration, not one global FIFO.
+
+AppAlertScope.flow is the default lifetime, including authenticated Retry/Cancel recovery. Normal root replacement cancels those requests. Global notices are informational OK-only requests; demo, malformed-link and overflow notices survive normal flow completion. Global callbacks must not capture an obsolete business operation; use flow scope and generation guards for business recovery. Reset/stop/disconnect cancel both scopes. A rejected recovery request cannot be awaited: AppCoordinator preserves session/stack, reports generic capacity feedback and releases that intent.
 
 ## Rejection observability
 
-The concrete router exposes an optional main-actor onRejectedNavigation callback with typed NavigationRejection values: invalidStack, unsupportedStackController, controllerInUse, presenterUnavailable, alreadyPresenting and routeNotFound. No controller descriptions, URLs, codes or application payloads are emitted.
+The concrete router exposes an optional main-actor onRejectedNavigation callback with typed NavigationRejection values: invalidStack, unsupportedStackController, controllerInUse, presenterUnavailable, alreadyPresenting, routeNotFound and queueFull. AlertAdmission and IntentAdmission separately report accepted/duplicate/capacity outcomes; alert validation also reports invalidActions. No controller descriptions, URLs, codes or application payloads are emitted.
 
 The production composition should record these safe reasons, distinguish integration mistakes from expected duplicates/policy no-ops, and define recovery at its own flow boundary. The callback is synchronous and is not a navigation-completion promise; keep handlers lightweight, capture owners weakly and do not blindly retry invalid input. Commands are asynchronous with respect to UIKit; immediate submission is not proof a destination became visible.
 
@@ -49,19 +69,19 @@ The UI suite adds a real edge-swipe check after leaving the protected flow, on b
 
 ## Production release gates
 
-The user's router rerun passed **22/22 declarations** (24 expanded runs), and the validation follow-up passed **5/5 declarations** (7 expanded runs). The latest full rerun passed **76 unit + 27 UI declarations = 103**, with **119 expanded runs**, no failures/skips and zero recorded runtime warnings. Prior root-replacement failures, immediate-push variants and new cancellation/disconnect/reentrancy cases all passed. The agent inspected existing results without building or running tests. See [Verification.md](Verification.md) for bundle paths and remaining native-fixture console diagnostics. A Simulator pass alone does not establish flawless navigation for a large production population.
+The user's latest full rerun passed **91 unit + 27 UI declarations = 118**, with **136 expanded runs**, no failures/skips and zero recorded runtime warnings. Focused alert/intent/policy suites also passed, including both protected-flow saturation cases, fairness, scoped root changes and recovery ownership. The agent inspected existing results without building or running tests. See [Verification.md](Verification.md) for bundle paths and remaining native-fixture console diagnostics. A Simulator pass alone does not establish flawless navigation for a large production population.
 
 Before integration/release, require:
 
-- Keep targeted native transition and full unit/UI execution as a regression gate with animations enabled and zero assertion failures. The current iPhone 17 / iOS 27.0 Simulator gate passed; continue investigating the documented native-fixture console diagnostics.
+- Keep targeted native transition and full unit/UI execution as a regression gate with animations enabled and zero assertion failures. The current policy revision passed on iPhone 17 / iOS 27.0 Simulator. Continue investigating the documented native-fixture console diagnostics.
 - The minimum supported iOS 17 runtime and current supported iOS versions; representative physical iPhones/iPads, both size classes, rotation and accessibility settings. The existing verified baseline covered iPhone 17 / iOS 27.0 Simulator only.
 - Repeated real completed/cancelled edge-back and sheet gestures, rapid alternating requests, foreground/background changes and scene disconnect during transitions. The controlled native tests complement real gestures; they do not replace device verification.
-- Explicit route-identity, existing-destination, modal, restoration and overflow policies for the consuming application. Distinct requests remain an unbounded in-memory FIFO; bounded backlog/overflow handling and profiling are still requirements to settle before shipping, not claimed fixes here.
+- Validate the tested queue, reservation, overflow feedback, alert lifetime and arbitration defaults against the consuming application's protected flows and workloads. Route identity/restoration, capacity tuning and measured memory/latency still require application-specific decisions.
 - Long-session memory/latency profiling and appropriate CI regression gates. The baseline's UIKit locked-focus-environment diagnostics in native test fixtures remain documented; no leak or harmlessness conclusion was established.
 - Production rejection metrics and a rollout/rollback strategy owned by the consuming project. No third-party telemetry service, persistence or generic routing framework is introduced by this demo.
 
 The release criterion is evidence against these contracts and the real application's flows. There is no claim that a user-count target or a single green run proves the absence of defects.
 
-An [independent strict review](audits/navigation-strict-review-2026-11-07.md) found no confirmed correctness blocker within this integration contract. Its P2 validation gap is proving actual interactive sheet-cancellation engagement; disconnect/release and broader callback reentrancy coverage also remain incomplete. The broader audit plan is not fully implemented; see [task-level status](audits/implementation-status.md).
+The [baseline strict review](audits/navigation-strict-review-2026-11-07.md) found no confirmed correctness blocker in its earlier scope. The later policy review identified the queue-saturation/protected-push issue described in [the policy ledger](plans/queue-and-alert-policy.md); the reserved-capacity fix and both regression cases passed in user runs. Broader native gesture/OS teardown and audit acceptance remain incomplete; see [task-level status](audits/implementation-status.md).
 
 The [validation follow-up](plans/navigation-validation-follow-up.md) passed its controlled callback/lifecycle tests in focused and full user runs. The cancellation fixture uses a real UIKit interactive transition with test-only adaptive callback forwarding, not a synthesized native sheet gesture. The scene fixture invokes a separate delegate's real disconnect callback and releases its own window, not the host's OS scene. These results do not establish native sheet-pan delivery, OS-driven teardown or production readiness. `9cddb39` is the committed earlier baseline; the follow-up is recorded with its latest passing verification evidence.

@@ -1,6 +1,30 @@
 # Verification record
 
-## Current follow-up — user Simulator runs passed (2026-11-07, 21:32 / 21:34 / 21:35)
+## Current queue / alert policy — user Simulator runs passed (2026-11-07, 22:29 / 22:30)
+
+The user built and ran the AUD-06/AUD-16 revision after baseline `a9b7788`. The full run passed **91 native unit + 27 UI = 118 declarations**, including **8 QueuePolicyTests**, with **136 expanded runs**, zero failures/skips and zero recorded runtime warnings. The portable subset is now **30 declarations**; its shared tests executed natively, but the separate macOS package command was not rerun.
+
+Defaults: 32 ordinary waiting navigation slots plus 2 bounded protected-flow slots; 8 pending business intents plus one active; 8 typed startup/reset staged intents per buffer; 9 waiting alerts with one reserved recovery slot plus one active. Typed rejections report capacity without payloads. Global informational notices survive normal root replacement; flow recovery alerts cancel. Reset/stop cancel all. Pending alerts get a turn after at most 4 non-root commands when presentation is eligible; root/cleanup retain precedence. See [NavigationContract.md](NavigationContract.md) and [the policy plan](plans/queue-and-alert-policy.md).
+
+Independent source review identified a P1 path where ordinary queue saturation could reject Redeem/Phone pushes while business state entered onboarding. The fix reserves two slots for blocked pushes of this demo's single protected flow. **Both saturation parameter cases passed**: before Redeem and after its admission; each reaches the actual protected Phone controller and completes Skip. Accepted ordinary work remains FIFO; explicit flow replacement can still invalidate obsolete work.
+
+Other new tests cover typed admission, deduplication before capacity, reserved recovery alerts, scoped cancellation, batch handoff under reentrancy, alert fairness, visible/inactive root scope handling, reset staging and rejected-recovery termination. The existing long-noop stress case explicitly opts into a larger bounded capacity. Shared startup/reset staging uses validated intents, not raw URL arrays; storage admission is distinct from final processor admission.
+
+| User-owned bundle | Actual result |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.07_22-29-14-+0200.xcresult` | AppAlertQueueTests: **13/13 passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.07_22-29-57-+0200.xcresult` | IntentProcessorTests: **6/6 passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.07_22-30-14-+0200.xcresult` | QueuePolicyTests: **8/8 declarations**, **10 expanded runs passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.07_22-30-57-+0200.xcresult` | Full suite: **91/91 unit + 27/27 UI passed**, **136 expanded runs passed** |
+| Failures / skipped / recorded runtime warnings | **0 / 0 / 0** in all four bundles |
+
+All bundles are under `~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`. Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The full test tree also confirms fairness, both visible scope variants, inactive global delivery after root change, reserved recovery, rejected-recovery termination and bounded reset staging passed.
+
+Console inspection found **0** matching unsupported-hosting, publication-during-update, unbalanced-appearance or unfinished-navigation-transition diagnostics. The UI console has **0** locked-focus/handler diagnostics. Unit console retains **8** locked-focus and **330** `cannot add handler to 0 from 0 - dropping` entries; their cause remains unestablished and they are not recorded runtime warnings. No leak, harmlessness or production-defect conclusion is inferred.
+
+The agent only inspected completed results and updated documentation; it ran no compiler, build, tests, Simulator or app. No production/test source changed after inspection. The user requested committing this verified policy revision with its evidence. Other consuming-flow reservations/capacity tuning, actual OS scene teardown/native sheet gestures, minimum-iOS/physical-device, Release and long-session profiling gates remain separate.
+
+## Earlier lifecycle follow-up — user Simulator runs passed (2026-11-07, 21:32 / 21:34 / 21:35)
 
 The navigation hardening and prior review/docs were committed as `9cddb39`. The subsequent follow-up adds **5 native declarations** (including three disconnect parameter cases) and **1 UI method**. The user's full rerun passed **76 unit + 27 UI = 103 declarations**, with **119 expanded runs**, zero failures/skips and zero recorded runtime warnings. The 97-declaration/111-expanded result below is the earlier committed baseline.
 

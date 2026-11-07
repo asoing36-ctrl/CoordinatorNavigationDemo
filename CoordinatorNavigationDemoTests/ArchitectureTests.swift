@@ -161,14 +161,14 @@ import UIKit
     }
     func pop() { guard !backBlocked, screens.count > 1 else { return }; screens.removeLast(); onChange?() }
     func popTo(_ route: Route) { guard !backBlocked, let index = routes.firstIndex(of: route) else { return }; screens = Array(screens.prefix(index + 1)); onChange?() }
-    func replaceStack(_ screens: [Screen]) { dismiss(); self.screens = screens; onChange?() }
+    func replaceStack(_ screens: [Screen]) { alerts.cancel(scope: .flow); dismiss(); self.screens = screens; onChange?() }
     func setRoot(_ controller: UIViewController, route: Route) { replaceStack([Screen(controller: controller, route: route)]) }
     func present(_ controller: UIViewController, route: PresentationRoute) {
         guard presentedController == nil else { return }
         presentedController = controller; presentedRoute = route; onChange?()
     }
     func dismiss() { presentedController = nil; presentedRoute = nil; onChange?() }
-    func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void) { alerts.enqueue(request, completion: completion) }
+    @discardableResult func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void) -> AlertAdmission { alerts.enqueue(request, completion: completion) }
     func setSceneActive(_ active: Bool) { alerts.sceneIsActive = active }
     func cancelAlerts() { alerts.cancelAll() }
     func cancelPendingNavigation() {} // This synchronous spy never has waiting commands.

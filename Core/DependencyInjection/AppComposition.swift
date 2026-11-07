@@ -9,14 +9,19 @@ import SwiftUI
     let rootViewController: UIViewController
     private var started = false
 
-    init(backend: MockBackend = MockBackend()) {
+    init(backend: MockBackend = MockBackend(), maximumPendingNavigation: Int = 32,
+         maximumPendingAlerts: Int = 9, maximumNavigationBurst: Int = 4) {
         let navigation = PolicyNavigationController()
         navigation.navigationBar.prefersLargeTitles = false
         navigationController = navigation
-        let router = NavigationRouter(navigationController: navigation)
+        let router = NavigationRouter(navigationController: navigation, maximumPendingNavigation: maximumPendingNavigation,
+            maximumPendingAlerts: maximumPendingAlerts, maximumNavigationBurst: maximumNavigationBurst)
         self.router = router
         let coordinator = AppCoordinator(router: router, backend: backend)
         self.coordinator = coordinator
+        router.onRejectedNavigation = { [weak coordinator] reason in
+            if reason == .queueFull { coordinator?.reportCapacityExceeded() }
+        }
         rootViewController = DemoRootViewController(navigationController: navigation, demo: coordinator.demo)
     }
 

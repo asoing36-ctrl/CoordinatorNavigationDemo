@@ -4,6 +4,68 @@ import Testing
 
 @MainActor
 struct AppAlertQueueTests {
+    @Test func capacityReservesFlowRecoveryAndDoesNotEvictAcceptedNotices() {
+        let queue = AppAlertQueue(maximumPendingRequests: 3)
+        let a = AppAlertRequest(key: "a", style: .uikit, title: "A", message: "", scope: .global)
+        let b = AppAlertRequest(key: "b", style: .swiftUI, title: "B", message: "", scope: .global)
+        let overflow = AppAlertRequest(key: "overflow", style: .uikit, title: "Overflow", message: "", scope: .global)
+        let recovery = AppAlertRequest.redeemFailure(message: "Recover", style: .uikit)
+        var completed: [String] = []
+        #expect(queue.enqueue(a, completion: { _ in completed.append("a") }) == .accepted)
+        #expect(queue.enqueue(b, completion: { _ in completed.append("b") }) == .accepted)
+        #expect(queue.enqueue(b, completion: { _ in completed.append("duplicate") }) == .duplicate)
+        #expect(queue.enqueue(overflow, completion: { _ in completed.append("overflow") }) == .capacityExceeded)
+        #expect(queue.enqueue(recovery, completion: { _ in completed.append("recovery") }) == .accepted)
+        #expect(queue.pendingCount == 3)
+        queue.sceneIsActive = true
+        #expect(queue.beginNext() == a); queue.complete(id: a.id, action: .ok)
+        #expect(queue.beginNext() == b); queue.complete(id: b.id, action: .ok)
+        #expect(queue.beginNext() == recovery); queue.complete(id: recovery.id, action: .cancel)
+        #expect(completed == ["a", "b", "recovery"])
+    }
+
+    @Test func flowCancellationPreservesActiveGlobalAndScopeSeparatesDeduplication() {
+        let queue = AppAlertQueue()
+        let global = AppAlertRequest(key: "same", style: .uikit, title: "Global", message: "", scope: .global)
+        let flow = AppAlertRequest(key: "same", style: .uikit, title: "Flow", message: "")
+        var actions: [String] = []
+        #expect(queue.enqueue(global, completion: { _ in actions.append("global") }) == .accepted)
+        #expect(queue.enqueue(flow, completion: { _ in actions.append("flow") }) == .accepted)
+        queue.sceneIsActive = true
+        #expect(queue.beginNext() == global)
+        queue.cancel(scope: .flow)
+        #expect(queue.current == global)
+        #expect(queue.pendingCount == 0)
+        queue.complete(id: global.id, action: .ok)
+        #expect(actions == ["global"])
+    }
+
+    @Test func cancellingActiveFlowLeavesGlobalNoticesInFIFOOrder() {
+        let queue = AppAlertQueue()
+        let flow = AppAlertRequest.redeemFailure(message: "Recover", style: .uikit)
+        let a = AppAlertRequest.demo(style: .uikit)
+        let b = AppAlertRequest.demo(style: .swiftUI)
+        var cancelledAction = false
+        queue.enqueue(flow) { _ in cancelledAction = true }
+        queue.sceneIsActive = true
+        #expect(queue.beginNext() == flow)
+        queue.enqueue(a); queue.enqueue(b)
+        queue.cancel(scope: .flow)
+        #expect(queue.current == nil)
+        #expect(queue.beginNext() == a)
+        queue.complete(id: a.id, action: .ok)
+        #expect(queue.beginNext() == b)
+        #expect(!cancelledAction)
+    }
+
+    @Test func durableGlobalNoticesCannotCarryFlowRecoveryActions() {
+        let queue = AppAlertQueue()
+        let invalid = AppAlertRequest(key: "bad", style: .uikit, title: "Bad", message: "", actions: [.retry, .cancel], scope: .global)
+        #expect(queue.enqueue(invalid) == .invalidActions)
+        #expect(queue.pendingCount == 0)
+        #expect(queue.enqueue(.demo(style: .uikit)) == .accepted)
+    }
+
     @Test func invalidActionsCannotOwnOrBlockTheQueue() {
         let queue = AppAlertQueue()
         queue.sceneIsActive = true

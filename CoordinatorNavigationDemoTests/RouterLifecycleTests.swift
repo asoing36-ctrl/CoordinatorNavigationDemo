@@ -120,7 +120,7 @@ import UIKit
     }
 
     @Test func aLongQueueOfNoOpBackRequestsStillAllowsTheNextValidPush() async throws {
-        try await withNavigationWindow { harness in
+        try await withNavigationWindow(maximumPendingNavigation: 1001) { harness in
             let router = harness.composition.router
             let navigation = harness.composition.navigationController
             let probe = NavigationTransitionProbe(navigation: navigation)

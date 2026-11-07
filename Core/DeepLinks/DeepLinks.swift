@@ -1,6 +1,21 @@
 import Foundation
 
 enum AppIntent: Equatable, Sendable { case redeemCredential(accessCode: String) }
+enum IntentAdmission: Equatable, Sendable { case accepted, duplicate, capacityExceeded }
+/// Validated intent staging only; business ownership begins at DeepLinkProcessor.
+struct PendingIntentBuffer {
+    private let maximumCount: Int
+    private var values: [AppIntent] = []
+    init(maximumCount: Int = 8) { self.maximumCount = max(1, maximumCount) }
+    @discardableResult mutating func append(_ intent: AppIntent) -> IntentAdmission {
+        guard !values.contains(intent) else { return .duplicate }
+        guard values.count < maximumCount else { return .capacityExceeded }
+        values.append(intent)
+        return .accepted
+    }
+    mutating func takeAll() -> [AppIntent] { let result = values; values.removeAll(); return result }
+    mutating func removeAll() { values.removeAll() }
+}
 enum DeepLinkError: Error, Equatable { case unsupported, missingCode, malformedCode }
 struct DeepLinkParser {
     func parse(_ url: URL) throws -> AppIntent {
@@ -21,13 +36,25 @@ struct DeepLinkParser {
 @MainActor final class DeepLinkProcessor {
     private(set) var active: AppIntent?
     private var pending: [AppIntent] = []
+    private let maximumPendingIntents: Int
     var pendingCount: Int { pending.count }
     var onIntent: ((AppIntent) -> Void)?
     var onChange: (() -> Void)?
-    func submit(_ intent: AppIntent) {
-        guard active != intent, !pending.contains(intent) else { return }
-        pending.append(intent)
+    init(maximumPendingIntents: Int = 8) { self.maximumPendingIntents = max(1, maximumPendingIntents) }
+    @discardableResult func submit(_ intent: AppIntent) -> IntentAdmission {
+        submit(contentsOf: [intent])[0]
+    }
+    /// Admit the whole reset buffer before callbacks can submit newer work.
+    @discardableResult func submit(contentsOf intents: [AppIntent]) -> [IntentAdmission] {
+        var results: [IntentAdmission] = []
+        for intent in intents {
+            let full = active == nil ? pending.count > maximumPendingIntents : pending.count >= maximumPendingIntents
+            if active == intent || pending.contains(intent) { results.append(.duplicate) }
+            else if full { results.append(.capacityExceeded) }
+            else { pending.append(intent); results.append(.accepted) }
+        }
         advance()
+        return results
     }
     func finish() { active = nil; advance() }
     func reset() { active = nil; pending = []; onChange?() }

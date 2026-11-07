@@ -12,7 +12,9 @@ import UIKit
     private var composition: AppComposition?
     private var startupTask: Task<Void, Never>?
     private var starting = false
-    private var startupURLs: [URL] = []
+    private var startupIntents = PendingIntentBuffer()
+    private var startupInvalidNotice = false
+    private var startupCapacityNotice = false
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene else { return }
         let urls = connectionOptions.urlContexts.map(\.url) + connectionOptions.userActivities.compactMap(\.webpageURL)
@@ -28,7 +30,7 @@ import UIKit
         startupTask?.cancel()
         self.composition?.coordinator.stop()
         starting = true
-        startupURLs.removeAll()
+        startupIntents.removeAll(); startupInvalidNotice = false; startupCapacityNotice = false
         let composition = AppComposition()
         self.composition = composition
         window.rootViewController = composition.rootViewController
@@ -44,9 +46,13 @@ import UIKit
             guard !Task.isCancelled, let self, self.composition === composition else { return }
             self.starting = false
             self.startupTask = nil
-            let waiting = self.startupURLs
-            self.startupURLs.removeAll()
-            for url in waiting { composition.coordinator.receive(url) }
+            let waiting = self.startupIntents.takeAll()
+            let invalid = self.startupInvalidNotice
+            let capacity = self.startupCapacityNotice
+            self.startupInvalidNotice = false; self.startupCapacityNotice = false
+            composition.coordinator.receive(waiting)
+            if invalid { composition.coordinator.reportUnsupportedLink() }
+            if capacity { composition.coordinator.reportCapacityExceeded() }
             #if DEBUG
             self.deliverLaunchLink(arguments, coordinator: composition.coordinator)
             #endif
@@ -63,7 +69,7 @@ import UIKit
     func sceneWillResignActive(_ scene: UIScene) { composition?.router.setSceneActive(false) }
     func sceneDidDisconnect(_ scene: UIScene) {
         startupTask?.cancel(); startupTask = nil
-        starting = false; startupURLs.removeAll()
+        starting = false; startupIntents.removeAll(); startupInvalidNotice = false; startupCapacityNotice = false
         composition?.coordinator.stop()
         composition = nil; window = nil
     }
@@ -77,7 +83,11 @@ import UIKit
     }
     private func receive(_ url: URL) {
         // Covers URL/Universal Link callbacks that arrive while cold session setup awaits.
-        if starting { startupURLs.append(url) }
-        else { composition?.coordinator.receive(url) }
+        if starting {
+            do {
+                let intent = try DeepLinkParser().parse(url)
+                if startupIntents.append(intent) == .capacityExceeded { startupCapacityNotice = true }
+            } catch { startupInvalidNotice = true }
+        } else { composition?.coordinator.receive(url) }
     }
 }

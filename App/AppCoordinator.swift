@@ -3,7 +3,7 @@ import SwiftUI
 @MainActor final class AppCoordinator: Coordinator {
     let id = UUID()
     let session = SessionStore()
-    let processor = DeepLinkProcessor()
+    let processor: DeepLinkProcessor
     let demo = DemoModel()
     private(set) var children: [UUID: any Coordinator] = [:]
     private(set) var flow: AppFlow = .launching
@@ -17,14 +17,18 @@ import SwiftUI
     private var resetTask: Task<Void, Never>?
     private var generation = UUID()
     private var resetting = false
-    private var deferredURLs: [URL] = []
+    private var deferredIntents: PendingIntentBuffer
+    private var deferredInvalidNotice = false
+    private var deferredCapacityNotice = false
     private var originalSession: UserSession?
     private var activeCode: String?
     private var started = false
     private var stopped = false
 
-    init(router: any NavigationRouting, backend: MockBackend) {
+    init(router: any NavigationRouting, backend: MockBackend, maximumPendingIntents: Int = 8) {
         self.router = router; self.backend = backend
+        deferredIntents = PendingIntentBuffer(maximumCount: maximumPendingIntents)
+        processor = DeepLinkProcessor(maximumPendingIntents: maximumPendingIntents)
         useCase = RedeemCredentialUseCase(repository: backend)
         router.onChange = { [weak self] in self?.refreshDiagnostics() }
         processor.onChange = { [weak self] in self?.refreshDiagnostics() }
@@ -51,13 +55,33 @@ import SwiftUI
     }
     func receive(_ url: URL) {
         guard !stopped else { return }
-        if resetting { deferredURLs.append(url); return }
-        do { processor.submit(try DeepLinkParser().parse(url)) }
-        catch {
-            demo.status = "Unsupported or malformed deep link."
-            router.showAlert(AppAlertRequest(key: "invalid-link", style: demo.alertStyle,
-                title: "Unsupported Link", message: "This link is unsupported or malformed."), completion: { _ in })
+        do { receive([try DeepLinkParser().parse(url)]) }
+        catch { reportUnsupportedLink() }
+    }
+    /// Already-validated startup/reset intents join the same business admission boundary.
+    func receive(_ intents: [AppIntent]) {
+        guard !stopped else { return }
+        if resetting {
+            for intent in intents {
+                if deferredIntents.append(intent) == .capacityExceeded { reportCapacityExceeded() }
+            }
+        } else if processor.submit(contentsOf: intents).contains(.capacityExceeded) {
+            reportCapacityExceeded()
         }
+    }
+    func reportUnsupportedLink() {
+        guard !stopped else { return }
+        if resetting { deferredInvalidNotice = true; return }
+        demo.status = "Unsupported or malformed deep link."
+        router.showAlert(AppAlertRequest(key: "invalid-link", style: demo.alertStyle,
+            title: "Unsupported Link", message: "This link is unsupported or malformed.", scope: .global), completion: { _ in })
+    }
+    func reportCapacityExceeded() {
+        guard !stopped else { return }
+        if resetting { deferredCapacityNotice = true; return }
+        let request = AppAlertRequest.capacityExceeded(style: demo.alertStyle)
+        demo.status = request.message
+        router.showAlert(request, completion: { _ in })
     }
     func submit(code: String) {
         var components = URLComponents()
@@ -108,10 +132,16 @@ import SwiftUI
                 if original != nil {
                     // Keep the intent and its original session until an explicit alert action.
                     // The router defers display while inactive and presents over the visible modal/content.
-                    self.router.showAlert(.redeemFailure(message: error.localizedDescription, style: self.demo.alertStyle)) { [weak self] action in
+                    let admission = self.router.showAlert(.redeemFailure(message: error.localizedDescription, style: self.demo.alertStyle)) { [weak self] action in
                         guard let self, self.generation == token, !self.stopped else { return }
                         if action == .retry { self.performRedeem() }
                         else { self.finishAuthenticatedRedeem() }
+                    }
+                    if admission == .capacityExceeded || admission == .invalidActions {
+                        // Rejected requests own no callback. Preserve session/stack
+                        // and release this intent rather than strand the pipeline.
+                        self.reportCapacityExceeded()
+                        self.finishAuthenticatedRedeem()
                     }
                 }
                 self.refreshDiagnostics()
@@ -162,11 +192,13 @@ import SwiftUI
     // half-reset state. Lifecycle stop invalidates its generation at every await.
     func reset(authenticated: Bool) async {
         guard !resetting, !stopped else { return }
+        deferredIntents.removeAll(); deferredInvalidNotice = false; deferredCapacityNotice = false
+        resetting = true
         router.cancelPendingNavigation()
         router.cancelAlerts()
         generation = UUID()
         let resetGeneration = generation
-        resetting = true; demo.busy = true
+        demo.busy = true
         let oldOperation = operation
         operation?.cancel(); operation = nil
         for coordinator in children.values { coordinator.stop() }
@@ -189,10 +221,16 @@ import SwiftUI
             showWelcome()
         }
         demo.loginCount = 0; demo.status = "Mock environment reset"
-        resetting = false; demo.busy = false
+        demo.busy = false
+        let intents = deferredIntents.takeAll()
+        let invalidNotice = deferredInvalidNotice
+        let capacityNotice = deferredCapacityNotice
+        deferredIntents.removeAll(); deferredInvalidNotice = false; deferredCapacityNotice = false
+        resetting = false
+        receive(intents) // Bulk admission occurs before new callbacks can overtake the buffer.
+        if invalidNotice { reportUnsupportedLink() }
+        if capacityNotice { reportCapacityExceeded() }
         refreshDiagnostics()
-        let urls = deferredURLs; deferredURLs.removeAll()
-        for url in urls { receive(url) }
     }
     func waitForOperation() async {
         // A completion may synchronously begin the next queued transaction.
@@ -217,7 +255,7 @@ import SwiftUI
         stopped = true
         router.cancelPendingNavigation()
         router.cancelAlerts()
-        resetting = false; deferredURLs.removeAll()
+        resetting = false; deferredIntents.removeAll(); deferredInvalidNotice = false; deferredCapacityNotice = false
         generation = UUID(); operation?.cancel(); resetTask?.cancel()
         for coordinator in children.values { coordinator.stop() }
         children.removeAll(); redeem = nil; onboarding = nil; home = nil

@@ -8,8 +8,9 @@ import UIKit
     private let appearance = NavigationWindowAppearanceProbe()
     private weak var previousWindow: UIWindow?
 
-    private init(backend: MockBackend) throws {
-        let composition = AppComposition(backend: backend)
+    private init(backend: MockBackend, maximumPendingNavigation: Int, maximumNavigationBurst: Int) throws {
+        let composition = AppComposition(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
+            maximumNavigationBurst: maximumNavigationBurst)
         self.composition = composition
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         previousWindow = scene.windows.first(where: \.isKeyWindow)
@@ -25,8 +26,9 @@ import UIKit
         appearance.didMove(toParent: root)
         window.makeKeyAndVisible()
     }
-    static func make(backend: MockBackend) async throws -> NavigationWindowHarness {
-        let harness = try NavigationWindowHarness(backend: backend)
+    static func make(backend: MockBackend, maximumPendingNavigation: Int, maximumNavigationBurst: Int) async throws -> NavigationWindowHarness {
+        let harness = try NavigationWindowHarness(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
+            maximumNavigationBurst: maximumNavigationBurst)
         do {
             try await waitForNavigationCondition { harness.appearance.didAppear }
             harness.composition.router.setSceneActive(true)
@@ -69,6 +71,8 @@ import UIKit
 
 @MainActor func withNavigationWindow(
     backend: MockBackend = MockBackend(delay: .zero),
+    maximumPendingNavigation: Int = 32,
+    maximumNavigationBurst: Int = 4,
     _ body: @MainActor (NavigationWindowHarness) async throws -> Void
 ) async throws {
     // Suite-level serialization does not serialize two different suites. Share one
@@ -76,7 +80,8 @@ import UIKit
     await NavigationWindowAccess.acquire()
     defer { NavigationWindowAccess.release() }
     try Task.checkCancellation()
-    let harness = try await NavigationWindowHarness.make(backend: backend)
+    let harness = try await NavigationWindowHarness.make(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
+        maximumNavigationBurst: maximumNavigationBurst)
     do {
         try await body(harness)
         await harness.close()
