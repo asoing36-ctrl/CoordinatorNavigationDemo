@@ -100,6 +100,87 @@ import UIKit
     }
 }
 
+/// Uses its own SceneDelegate/window; never disconnects the host app's delegate.
+@MainActor final class SceneDelegateWindowHarness {
+    let scene: UIWindowScene
+    let delegate = SceneDelegate()
+    private var window: SceneAppearanceWindow?
+    private weak var previousWindow: UIWindow?
+
+    private init() throws {
+        scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        previousWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = SceneAppearanceWindow(windowScene: scene)
+        self.window = window
+        delegate.connect(window: window, initialURLs: [], authenticated: false)
+    }
+    static func make() async throws -> SceneDelegateWindowHarness {
+        let harness = try SceneDelegateWindowHarness()
+        do {
+            try await waitForNavigationCondition { harness.window?.appearance.didAppear == true }
+            harness.delegate.sceneDidBecomeActive(harness.scene)
+            if let appearance = harness.window?.appearance {
+                appearance.willMove(toParent: nil)
+                appearance.view.removeFromSuperview()
+                appearance.removeFromParent()
+            }
+            return harness
+        } catch { await harness.close(); throw error }
+    }
+    func navigationController() throws -> PolicyNavigationController {
+        try #require(window?.rootViewController?.children.compactMap { $0 as? PolicyNavigationController }.first)
+    }
+    func releaseWindow() async {
+        guard let window else { return }
+        let navigation = window.rootViewController?.children.compactMap { $0 as? PolicyNavigationController }.first
+        try? await waitForNavigationCondition { navigation?.transitionCoordinator == nil &&
+            navigation?.presentedViewController?.transitionCoordinator == nil &&
+            navigation?.presentedViewController?.isBeingPresented != true &&
+            navigation?.presentedViewController?.isBeingDismissed != true }
+        if navigation?.presentedViewController != nil {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                navigation?.dismiss(animated: false) { continuation.resume() }
+            }
+        }
+        previousWindow?.makeKeyAndVisible()
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+        window.isHidden = true
+        window.rootViewController = nil
+        self.window = nil
+    }
+    func close() async {
+        delegate.sceneDidDisconnect(scene)
+        await releaseWindow()
+    }
+}
+
+@MainActor private final class SceneAppearanceWindow: UIWindow {
+    let appearance = NavigationWindowAppearanceProbe()
+    override func makeKeyAndVisible() {
+        if appearance.parent == nil, let root = rootViewController {
+            root.addChild(appearance)
+            root.view.addSubview(appearance.view)
+            appearance.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+            appearance.view.isUserInteractionEnabled = false
+            appearance.didMove(toParent: root)
+        }
+        super.makeKeyAndVisible()
+    }
+}
+
+@MainActor func withSceneDelegateWindow(
+    _ body: @MainActor (SceneDelegateWindowHarness) async throws -> Void
+) async throws {
+    await NavigationWindowAccess.acquire()
+    defer { NavigationWindowAccess.release() }
+    try Task.checkCancellation()
+    let harness = try await SceneDelegateWindowHarness.make()
+    do { try await body(harness); await harness.close() }
+    catch { await harness.close(); throw error }
+}
+
 @MainActor func waitForNavigationCondition(
     diagnostics: @MainActor () -> String = { "" },
     _ condition: @MainActor () -> Bool,

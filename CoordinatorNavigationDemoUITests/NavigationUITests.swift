@@ -163,7 +163,8 @@ import XCTest
         XCTAssertTrue(app.buttons["dismissSwiftUIModal"].waitForExistence(timeout: 5))
         let title = app.staticTexts["presentedSwiftUITitle"]
         let start = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        // A short, slow drag released below the dismissal threshold cancels the gesture.
+        // Gesture smoke coverage: a short drag alone does not prove that an
+        // interactive dismissal engaged. Native tests cover the cancellation path.
         start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 30)),
                     withVelocity: .slow, thenHoldForDuration: 0.2)
         XCTAssertTrue(app.buttons["dismissSwiftUIModal"].isHittable)
@@ -354,6 +355,31 @@ import XCTest
         findAndTap("showUIKitAlert")
         acknowledgeAlert("UIKit Alert")
         XCTAssertTrue(app.navigationBars["Home"].exists)
+    }
+    func testAlertCancelDeliversNextErrorAndPreservesNavigation() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        let identity = instanceIdentity()
+        findAndTap("openSecondary")
+        XCTAssertTrue(app.navigationBars["Secondary"].waitForExistence(timeout: 5))
+        deliverToExistingApplication("credentialdemo://redeem?code=INVALID")
+        let alert = app.alerts["Unable to Redeem"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "invalid")).firstMatch.exists)
+        deliverToExistingApplication("credentialdemo://redeem?code=EXPIRED")
+        alert.buttons["Cancel"].tap()
+        // A same-title alert can replace the first one immediately; distinguish
+        // the next business error by content instead of waiting for title absence.
+        let expired = app.alerts["Unable to Redeem"].staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "expired")).firstMatch
+        XCTAssertTrue(expired.waitForExistence(timeout: 5))
+        acknowledgeAlert("Unable to Redeem", action: "Cancel")
+        XCTAssertEqual(instanceIdentity(), identity)
+        XCTAssertTrue(app.navigationBars["Secondary"].exists)
+        app.navigationBars.buttons["Home"].tap()
+        findAndTap("openUIKit")
+        XCTAssertTrue(app.navigationBars["UIKit Lab"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["Home"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
     }
     func testA_NewUserSkip() {
         launch(["--link", "NEW-USER"])

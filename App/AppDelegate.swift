@@ -15,27 +15,32 @@ import UIKit
     private var startupURLs: [URL] = []
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene else { return }
+        let urls = connectionOptions.urlContexts.map(\.url) + connectionOptions.userActivities.compactMap(\.webpageURL)
+        #if DEBUG
+        let authenticated = ProcessInfo.processInfo.arguments.contains("--authenticated")
+        #else
+        let authenticated = false
+        #endif
+        connect(window: UIWindow(windowScene: scene), initialURLs: urls, authenticated: authenticated)
+    }
+    /// Explicit window ownership; the OS entry point above decodes connection options.
+    func connect(window: UIWindow, initialURLs: [URL], authenticated: Bool) {
         startupTask?.cancel()
         self.composition?.coordinator.stop()
         starting = true
         startupURLs.removeAll()
         let composition = AppComposition()
         self.composition = composition
-        let window = UIWindow(windowScene: scene)
         window.rootViewController = composition.rootViewController
         self.window = window
         composition.start()
         window.makeKeyAndVisible()
-        let urls = connectionOptions.urlContexts.map(\.url) + connectionOptions.userActivities.compactMap(\.webpageURL)
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        let authenticated = arguments.contains("--authenticated")
-        #else
-        let authenticated = false
         #endif
         startupTask = Task { @MainActor [weak self, weak composition] in
             guard let composition else { return }
-            await composition.start(initialURLs: urls, authenticated: authenticated)
+            await composition.start(initialURLs: initialURLs, authenticated: authenticated)
             guard !Task.isCancelled, let self, self.composition === composition else { return }
             self.starting = false
             self.startupTask = nil

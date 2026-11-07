@@ -49,7 +49,7 @@ The UI suite adds a real edge-swipe check after leaving the protected flow, on b
 
 ## Production release gates
 
-The user's targeted rerun passed **22/22 router declarations** (24 expanded runs). The subsequent full rerun passed **71 unit + 26 UI declarations = 97**, with **111 expanded runs**, no failures/skips and zero recorded runtime warnings. Both prior root-replacement failures and both immediate-push regression variants passed. The agent inspected existing results without building or running tests. See [Verification.md](Verification.md) for bundle paths and remaining native-fixture console diagnostics. A Simulator pass alone does not establish flawless navigation for a large production population.
+The user's router rerun passed **22/22 declarations** (24 expanded runs), and the validation follow-up passed **5/5 declarations** (7 expanded runs). The latest full rerun passed **76 unit + 27 UI declarations = 103**, with **119 expanded runs**, no failures/skips and zero recorded runtime warnings. Prior root-replacement failures, immediate-push variants and new cancellation/disconnect/reentrancy cases all passed. The agent inspected existing results without building or running tests. See [Verification.md](Verification.md) for bundle paths and remaining native-fixture console diagnostics. A Simulator pass alone does not establish flawless navigation for a large production population.
 
 Before integration/release, require:
 
@@ -63,3 +63,5 @@ Before integration/release, require:
 The release criterion is evidence against these contracts and the real application's flows. There is no claim that a user-count target or a single green run proves the absence of defects.
 
 An [independent strict review](audits/navigation-strict-review-2026-11-07.md) found no confirmed correctness blocker within this integration contract. Its P2 validation gap is proving actual interactive sheet-cancellation engagement; disconnect/release and broader callback reentrancy coverage also remain incomplete. The broader audit plan is not fully implemented; see [task-level status](audits/implementation-status.md).
+
+The [validation follow-up](plans/navigation-validation-follow-up.md) passed its controlled callback/lifecycle tests in focused and full user runs. The cancellation fixture uses a real UIKit interactive transition with test-only adaptive callback forwarding, not a synthesized native sheet gesture. The scene fixture invokes a separate delegate's real disconnect callback and releases its own window, not the host's OS scene. These results do not establish native sheet-pan delivery, OS-driven teardown or production readiness. `9cddb39` is the committed earlier baseline; the follow-up is recorded with its latest passing verification evidence.

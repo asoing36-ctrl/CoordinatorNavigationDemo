@@ -37,6 +37,8 @@
 		188CEB08B6CA28E34B52F975 /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */; };
 		1526DCC1EB662F2F612B3C6D /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB5217B35F655254707CD54 /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift */; };
 		DCB753F55AAE26CEC54768E1 /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41BED8167AE43BCDC763766F /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift */; };
+		D39EC005F79AD1D7C2AEEFA1 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B2BC7F3851701E00744B15 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift */; };
+		AEBF17667E71BBEC289FBBED /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A715E5DA6923BC7FB6ACBA /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -92,6 +94,8 @@
 		19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/RouterLifecycleTests.swift; sourceTree = "<group>"; };
 		1AB5217B35F655254707CD54 /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift; sourceTree = "<group>"; };
 		41BED8167AE43BCDC763766F /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift; sourceTree = "<group>"; };
+		62B2BC7F3851701E00744B15 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift; sourceTree = "<group>"; };
+		59A715E5DA6923BC7FB6ACBA /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,6 +126,8 @@
 		584FF3284433B1276B3A941A /* CoordinatorNavigationDemoTests */ = {
 			isa = PBXGroup;
 			children = (
+				62B2BC7F3851701E00744B15 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift */,
+				59A715E5DA6923BC7FB6ACBA /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift */,
 				19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */,
 				1AB5217B35F655254707CD54 /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift */,
 				41BED8167AE43BCDC763766F /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift */,
@@ -383,6 +389,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D39EC005F79AD1D7C2AEEFA1 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift in Sources */,
+				AEBF17667E71BBEC289FBBED /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift in Sources */,
 				188CEB08B6CA28E34B52F975 /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift in Sources */,
 				1526DCC1EB662F2F612B3C6D /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift in Sources */,
 				DCB753F55AAE26CEC54768E1 /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift in Sources */,

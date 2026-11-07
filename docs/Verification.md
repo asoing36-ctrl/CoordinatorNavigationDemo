@@ -1,6 +1,29 @@
 # Verification record
 
-## Current navigation hardening — user Simulator runs passed (2026-11-07, 20:50 / 20:52)
+## Current follow-up — user Simulator runs passed (2026-11-07, 21:32 / 21:34 / 21:35)
+
+The navigation hardening and prior review/docs were committed as `9cddb39`. The subsequent follow-up adds **5 native declarations** (including three disconnect parameter cases) and **1 UI method**. The user's full rerun passed **76 unit + 27 UI = 103 declarations**, with **119 expanded runs**, zero failures/skips and zero recorded runtime warnings. The 97-declaration/111-expanded result below is the earlier committed baseline.
+
+`NavigationReliabilityTests` covers a real UIKit interactive dismissal with test-only adaptive callback forwarding, separate SceneDelegate disconnect callbacks during push/modal/alert transitions, weak ownership release, and observer/rejection reentrancy. `testAlertCancelDeliversNextErrorAndPreservesNavigation` adds native UI action → next error → usable original navigation. The scene test invokes the public callback on a separate delegate/window; it does not destroy the host OS scene. The custom presentation test does not synthesize the native sheet pan recognizer. Those OS/device checks remain release gates.
+
+The only production change extracts shared `SceneDelegate.connect(window:initialURLs:authenticated:)`; the actual OS callback still supplies decoded URLs and initial configuration. Router and business behavior are unchanged. Test helpers belong only to the native target. The user built and ran the cases in Xcode; the agent inspected completed artifacts without initiating compilers, builds, Simulator or tests. See [the follow-up plan](plans/navigation-validation-follow-up.md).
+
+| User-run bundle | Actual result |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.07_21-32-38-+0200.xcresult` | NavigationReliabilityTests: **5/5 declarations**, **7 expanded runs passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.07_21-34-18-+0200.xcresult` | Focused UI: **1/1 method passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.07_21-35-14-+0200.xcresult` | Full suite: **76/76 unit + 27/27 UI passed**, **119 expanded runs passed** |
+| Failures / skipped / recorded runtime warnings | **0 / 0 / 0** in all three bundles |
+
+The full test tree confirms the controlled cancellation case, both observer cases, rejection recovery, all three disconnect variants (push/modal/alert), and the new alert-action UI case passed. All bundles are in `~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`. Destination: iPhone 17 / iOS 27.0 Simulator, arm64.
+
+Independent source review identified two test-support issues, addressed in one source fix pass before the user's runs: restore the rejection callback to break its router capture, and reset per-dismissal interaction state so ordinary dismissal does not receive an extra adaptive completion. The passing cancellation case asserts zero forwarded adaptive didDismiss callbacks after cancel plus ordinary dismissal. The disconnect cases' weak-release assertions also passed on this destination.
+
+Latest console inspection found **0** matching unsupported-hosting, publication-during-update, unbalanced-appearance or unfinished-navigation-transition diagnostics. The UI console also has **0** locked-focus/handler diagnostics. The native unit console retains **8** locked-focus and **270** `cannot add handler to 0 from 0 - dropping` entries, without recorded runtime warnings. Their cause is unestablished; no leak, harmlessness or production-defect conclusion is inferred.
+
+Only documentation changed after result inspection. The verified follow-up and this evidence are committed together at the user's request. Actual OS-driven scene teardown, native sheet-pan delivery, iOS 17/current supported physical devices, Release and long-session profiling remain separate validation; the passed controlled tests do not replace them.
+
+## Earlier committed navigation baseline — user Simulator runs passed (2026-11-07, 20:50 / 20:52)
 
 The user prioritized the reusable navigation layer for a large production project. This revision adds guarded controller ownership/reuse and replacement validation, typed rejection reporting, an iterative non-reentrant queue, duplicate-push coalescing, independent stack/modal completion gates, scene eligibility, hidden-stack updates and completed-transition Back reconciliation. Coordinator changes are limited to clearing pending navigation at reset/stop; backend/account behavior is unchanged.
 
