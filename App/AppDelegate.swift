@@ -40,6 +40,12 @@ import UIKit
         }
     }
     #endif
+    func sceneDidBecomeActive(_ scene: UIScene) { composition?.router.setSceneActive(true) }
+    func sceneWillResignActive(_ scene: UIScene) { composition?.router.setSceneActive(false) }
+    func sceneDidDisconnect(_ scene: UIScene) {
+        composition?.coordinator.stop()
+        composition = nil; window = nil
+    }
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         for context in URLContexts { composition?.coordinator.receive(context.url) }
     }

@@ -95,6 +95,22 @@ import XCTest
         XCTAssertTrue(app.buttons["labOpenSwiftUI"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["labOpenSwiftUI"].isHittable)
     }
+    func testSwiftUISheetControlsKeepDistinctAccessibilityIdentifiers() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("presentSwiftUI")
+        let done = app.buttons["dismissSwiftUIModal"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5),
+                      "The sheet container must not overwrite the Done button identifier")
+        XCTAssertTrue(done.isHittable)
+        XCTAssertEqual(app.staticTexts["presentedSwiftUITitle"].label, "Credential sheet")
+        XCTAssertEqual(app.staticTexts["modalStack"].label, "Underlying stack: home")
+        XCTAssertFalse(app.buttons["presentedSwiftUIScreen"].exists,
+                       "A screen-level identifier must not leak onto descendant controls")
+        done.tap()
+        XCTAssertTrue(done.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Home"].exists)
+    }
     func testSwiftUISheetDismissalPreservesSecondaryAndBack() {
         launch(["--authenticated"])
         XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
@@ -180,6 +196,73 @@ import XCTest
         app.buttons["dismissSwiftUIModal"].tap()
         XCTAssertTrue(app.buttons["labPresentSwiftUI"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.navigationBars["UIKit Lab"].exists)
+    }
+    private func acknowledgeAlert(_ title: String, action: String = "OK") {
+        let alert = app.alerts[title]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons[action].tap()
+        XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
+    }
+    func testBothNativeAlertStylesFromSwiftUIAndXIB() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("showUIKitAlert"); acknowledgeAlert("UIKit Alert")
+        findAndTap("showSwiftUIAlert"); acknowledgeAlert("SwiftUI Alert")
+        // Scroll back to the Home navigation actions.
+        app.swipeDown(); app.swipeDown(); app.swipeDown()
+        findAndTap("openUIKit")
+        XCTAssertTrue(app.navigationBars["UIKit Lab"].waitForExistence(timeout: 5))
+        findAndTap("showSwiftUIAlert"); acknowledgeAlert("SwiftUI Alert")
+        findAndTap("showUIKitAlert"); acknowledgeAlert("UIKit Alert")
+        XCTAssertTrue(app.navigationBars["UIKit Lab"].exists)
+    }
+    func testAlertsAboveSheetAndFullScreenPreserveThem() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("presentSwiftUI")
+        XCTAssertTrue(app.buttons["dismissSwiftUIModal"].waitForExistence(timeout: 5))
+        findAndTap("showUIKitAlert"); acknowledgeAlert("UIKit Alert")
+        findAndTap("showSwiftUIAlert"); acknowledgeAlert("SwiftUI Alert")
+        XCTAssertTrue(app.buttons["dismissSwiftUIModal"].isHittable)
+        app.buttons["dismissSwiftUIModal"].tap()
+        findAndTap("presentUIKit")
+        XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
+        findAndTap("showSwiftUIAlert"); acknowledgeAlert("SwiftUI Alert")
+        findAndTap("showUIKitAlert"); acknowledgeAlert("UIKit Alert")
+        findAndTap("dismissUIKitModal")
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+    }
+    func testGlobalAlertOverProtectedPhonePreservesItsBackPolicy() {
+        launch(["--link", "NEW-USER"])
+        assertPhoneProtected()
+        app.open(URL(string: "credentialdemo://unsupported")!)
+        acknowledgeAlert("Unsupported Link")
+        assertPhoneProtected()
+        app.buttons["skipPhone"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+    }
+    func testAuthenticatedDeepLinkErrorIsGlobalAndCancelPreservesStack() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("openDetails")
+        XCTAssertTrue(app.navigationBars["Credential Details"].waitForExistence(timeout: 5))
+        // OS delivery activates the existing application; no screen-specific presenter is needed.
+        app.open(URL(string: "credentialdemo://redeem?code=INVALID")!)
+        acknowledgeAlert("Unable to Redeem", action: "Cancel")
+        XCTAssertTrue(app.navigationBars["Credential Details"].exists)
+        XCTAssertEqual(app.staticTexts["credentialCount"].label, "Credentials: 1")
+    }
+    func testBackgroundDeepLinkErrorAppearsAfterForegroundActivation() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("presentUIKit")
+        XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.press(.home)
+        app.open(URL(string: "credentialdemo://redeem?code=NETWORK-FAIL")!)
+        acknowledgeAlert("Unable to Redeem", action: "Retry")
+        XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
+        findAndTap("dismissUIKitModal")
+        XCTAssertTrue(app.staticTexts["Recovered Library"].waitForExistence(timeout: 5))
     }
     func testA_NewUserSkip() {
         launch(["--link", "NEW-USER"])

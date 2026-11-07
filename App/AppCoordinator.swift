@@ -30,6 +30,9 @@ import SwiftUI
         processor.onChange = { [weak self] in self?.refreshDiagnostics() }
         processor.onIntent = { [weak self] intent in self?.handle(intent) }
         demo.inject = { [weak self] code in self?.submit(code: code) }
+        demo.showAlert = { [weak self] style in
+            self?.router.showAlert(.demo(style: style), completion: { _ in })
+        }
         demo.reset = { [weak self] authenticated in
             guard let self, !self.resetting else { return }
             self.resetTask = Task { [weak self] in await self?.reset(authenticated: authenticated) }
@@ -50,7 +53,11 @@ import SwiftUI
         guard !stopped else { return }
         if resetting { deferredURLs.append(url); return }
         do { processor.submit(try DeepLinkParser().parse(url)) }
-        catch { demo.status = "Unsupported or malformed deep link." }
+        catch {
+            demo.status = "Unsupported or malformed deep link."
+            router.showAlert(AppAlertRequest(key: "invalid-link", style: demo.alertStyle,
+                title: "Unsupported Link", message: "This link is unsupported or malformed."), completion: { _ in })
+        }
     }
     func submit(code: String) {
         var components = URLComponents()
@@ -98,8 +105,15 @@ import SwiftUI
                 guard let self, self.generation == token, !Task.isCancelled else { return }
                 self.redeem?.fail(error)
                 self.demo.status = error.localizedDescription
-                // Authenticated flow has no extra screen; finish transaction with inline error + retry via injection.
-                if original != nil { self.finishAuthenticatedRedeem() }
+                if original != nil {
+                    // Keep the intent and its original session until an explicit alert action.
+                    // The router defers display while inactive and presents over the visible modal/content.
+                    self.router.showAlert(.redeemFailure(message: error.localizedDescription, style: self.demo.alertStyle)) { [weak self] action in
+                        guard let self, self.generation == token, !self.stopped else { return }
+                        if action == .retry { self.performRedeem() }
+                        else { self.finishAuthenticatedRedeem() }
+                    }
+                }
                 self.refreshDiagnostics()
             }
         }
@@ -148,6 +162,7 @@ import SwiftUI
     // half-reset state. Lifecycle stop invalidates its generation at every await.
     func reset(authenticated: Bool) async {
         guard !resetting, !stopped else { return }
+        router.cancelAlerts()
         generation = UUID()
         let resetGeneration = generation
         resetting = true; demo.busy = true
@@ -199,6 +214,7 @@ import SwiftUI
     }
     func stop() {
         stopped = true
+        router.cancelAlerts()
         resetting = false; deferredURLs.removeAll()
         generation = UUID(); operation?.cancel(); resetTask?.cancel()
         for coordinator in children.values { coordinator.stop() }

@@ -52,7 +52,7 @@ The use case receives the **session captured before the transaction started**, i
 
 An already authenticated user keeps the same session and controller instances. Redemption performs no create/login, never opens phone onboarding, and refreshes observed credential/permission data in place. Navigate to **Secondary SwiftUI screen**, then **Add credential**, to see stack preservation. Diagnostics show zero login requests in a seeded authenticated environment.
 
-Unauthenticated errors stay on the redeem status screen with **Retry** and **Return**. Return ends the failed intent and restores Welcome. Authenticated errors appear inline in demo status on the existing screen; inject again to retry. Invalid/expired codes do not mutate the session. Phone errors remain on the phone screen with retry and Skip available; submissions are disabled while a request runs. Successful association is followed immediately by Home.
+Unauthenticated errors stay on the redeem status screen with **Retry** and **Return**. Return ends the failed intent and restores Welcome. Authenticated errors use a global alert over the current screen or modal. Retry preserves the original session; Cancel ends the failed intent and lets the next queued intent proceed. The status row is also updated. Invalid/expired codes do not mutate the session. Phone errors remain on the phone screen with retry and Skip available; submissions are disabled while a request runs. Successful association is followed immediately by Home.
 
 ## Intent policy and deep links
 
@@ -124,6 +124,18 @@ Choose **Start authenticated** (or finish credential onboarding), then use **Pre
 The router serializes presentation/dismissal with pushes, ignores extra presentations while one is visible, reconciles interactive dismissal and cancellation, and dismisses a modal before explicit root/stack replacement. Presentation from a detached controller is rejected without blocking queued work. No additional coordinator, navigation controller or navigation stack is introduced.
 
 Six presentation UI tests cover Done, swipe dismissal followed by a new modal, cancelled sheet swipe followed by dismissal, full-screen XIB dismissal and subsequent push, switching from UIKit modal to SwiftUI sheet, and presenting from the pushed UIKit lab. Four unit tests cover coordinator presentation configuration, the real XIB dismiss action, reset/duplicate policy and detached presentation handling. Runtime execution is subject to the Simulator limitation documented below.
+
+## Global UIKit and SwiftUI alerts
+
+The **Alerts** section on Welcome, Home and Secondary has **Show UIKit alert**, **Show SwiftUI alert**, and a selector for the renderer used by deep-link errors. Both renderers are also available on credential details, the presented credential sheet and the real XIB lab (pushed or full screen). Alerts are requested through coordinator callbacks and `NavigationRouting.showAlert`; screen implementations never search UIApplication windows or present UIKit controllers themselves.
+
+`AppAlertQueue` owns FIFO requests, active ownership, semantic-key deduplication and once-only action callbacks. It starts inactive. SceneDelegate calls `setSceneActive(true)` on `sceneDidBecomeActive` and pauses new presentations on `sceneWillResignActive`. A request received while backgrounded/inactive waits; on activation the router finds the actual topmost visible controller, including a sheet/full-screen modal, and waits for active navigation/presentation transitions. No second navigation controller or window is introduced. iOS may suspend application work while backgrounded; this does not add a background execution entitlement or promise execution while suspended.
+
+UIKit requests render with `UIAlertController`. SwiftUI requests use native `.alert` in a small hosting child attached to the visible content controller; this supports SwiftUI alerts over UIKit/XIB too. The anchor has no interactive content and is removed after the native alert has left its window. Because alert actions run before automatic dismissal finishes, the renderer waits for the actual native controller's removal before releasing the navigation queue. Its cancellation-aware 16ms recheck is scoped to dismissal; elapsed time alone is never taken as proof of dismissal. This bridge needs real Simulator/device UI verification, as described in the verification record.
+
+Authenticated redemption failures now show **Unable to Redeem** with **Retry** and **Cancel** from any authenticated destination or existing modal. The protected intent stays active until a choice: Retry reuses its original session context, while Cancel preserves the current stack/session and advances pending intents. Unauthenticated redeem errors retain their existing visible Retry/Return screen. Malformed/unsupported URLs use a generic global alert with no URL/code in the message. Reset/disconnect discard pending alerts and invalidate their callbacks; an existing user modal remains intact when an error alert is acknowledged.
+
+Background example: choose Start authenticated, open a sheet or XIB lab, background the app, then use `xcrun simctl openurl booted 'credentialdemo://redeem?code=NETWORK-FAIL'`. On foreground activation the recoverable error appears above that same destination; Retry succeeds without re-login or removing the modal. Repeat with INVALID and Cancel to preserve the session unchanged. For SwiftUI error rendering, choose SwiftUI in Error alert style before navigating/backgrounding.
 
 ## Tests and verification
 

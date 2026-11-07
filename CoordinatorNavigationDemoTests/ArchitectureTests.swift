@@ -149,6 +149,7 @@ import UIKit
 
 @MainActor final class RouterSpy: NavigationRouting {
     var screens: [Screen] = []
+    let alerts = AppAlertQueue()
     var onChange: (() -> Void)?
     var presentedRoute: PresentationRoute?
     var presentedController: UIViewController?
@@ -167,6 +168,9 @@ import UIKit
         presentedController = controller; presentedRoute = route; onChange?()
     }
     func dismiss() { presentedController = nil; presentedRoute = nil; onChange?() }
+    func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void) { alerts.enqueue(request, completion: completion) }
+    func setSceneActive(_ active: Bool) { alerts.sceneIsActive = active }
+    func cancelAlerts() { alerts.cancelAll() }
 }
 
 @MainActor struct CompositionTests {
@@ -247,5 +251,57 @@ import UIKit
         router.push(UIViewController(), route: .secondary)
         #expect(router.presentedRoute == nil)
         #expect(router.routes == [.home, .secondary])
+    }
+}
+
+@MainActor struct GlobalAlertFlowTests {
+    @Test func backgroundRedeemFailureWaitsForActivationAndPreservesDetails() async throws {
+        let router = RouterSpy()
+        let app = AppCoordinator(router: router, backend: MockBackend(delay: .zero))
+        app.start(); await app.reset(authenticated: true)
+        app.home?.showDetails()
+        let before = router.screens.map(\.controller)
+        app.submit(code: "INVALID"); await app.waitForOperation()
+        #expect(router.alerts.current == nil)
+        #expect(router.alerts.pendingCount == 1)
+        #expect(app.processor.active != nil)
+        router.setSceneActive(true)
+        let alert = try #require(router.alerts.beginNext())
+        #expect(alert.title == "Unable to Redeem")
+        router.alerts.complete(id: alert.id, action: .cancel)
+        #expect(app.processor.active == nil)
+        #expect(app.session.isAuthenticated)
+        #expect(router.screens.map(\.controller) == before)
+    }
+    @Test func alertRetryUsesExistingSessionAndPreservesModal() async throws {
+        let router = RouterSpy()
+        let backend = MockBackend(delay: .zero)
+        let app = AppCoordinator(router: router, backend: backend)
+        app.start(); await app.reset(authenticated: true)
+        router.setSceneActive(true)
+        app.demo.alertStyle = .swiftUI
+        app.home?.presentSwiftUI()
+        let modal = router.presentedController
+        app.submit(code: "NETWORK-FAIL"); await app.waitForOperation()
+        let alert = try #require(router.alerts.beginNext())
+        #expect(alert.style == .swiftUI)
+        router.alerts.complete(id: alert.id, action: .retry)
+        await app.waitForOperation()
+        #expect(app.session.credentials.count == 2)
+        #expect(await backend.metrics().loginCount == 0)
+        #expect(router.presentedController === modal)
+        #expect(router.routes == [.home])
+    }
+    @Test func resetDiscardsQueuedAlertAndItsCallback() async {
+        let router = RouterSpy()
+        let app = AppCoordinator(router: router, backend: MockBackend(delay: .zero))
+        app.start(); await app.reset(authenticated: true)
+        app.submit(code: "EXPIRED"); await app.waitForOperation()
+        #expect(router.alerts.pendingCount == 1)
+        await app.reset(authenticated: false)
+        router.setSceneActive(true)
+        #expect(router.alerts.beginNext() == nil)
+        #expect(!app.session.isAuthenticated)
+        #expect(router.routes == [.welcome])
     }
 }

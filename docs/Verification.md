@@ -101,3 +101,36 @@ Modal metadata is separate from the push stack. The router serializes presentati
 - Logs: `/private/tmp/coordinator-presentation-build.log` and `/private/tmp/coordinator-presentation-ui-tests.log`.
 
 Try it locally: choose Start authenticated, then Present SwiftUI sheet or Present UIKit full screen under Present screens on Home. Use Done, a sheet swipe, or Dismiss full screen to return. Product → Test runs all tests in a normal Simulator session.
+
+## SwiftUI sheet accessibility regression (2026-11-07)
+
+The user's Xcode UI test run on iPhone 17 / iOS 26.5 recorded 39 passing and 5 failing test declarations. All five failures occurred before gesture/dismissal checks, while looking up `dismissSwiftUIModal`:
+
+- `testCancelledSheetSwipeStillAllowsDismissalAndNextPresentation`
+- `testSheetSwipeDismissalAllowsPresentingAgain`
+- `testSwiftUISheetDismissalPreservesSecondaryAndBack`
+- `testUIKitLabPresentsSwiftUISheetWithoutPushing`
+- `testUIKitModalCanSwitchToSwiftUISheet`
+
+The failed run's exported accessibility hierarchy proves that the sheet was onscreen: its title, Done button and stack label were present, but all three had identifier `presentedSwiftUIScreen`. The outer VStack's identifier replaced the direct descendants' explicit identifiers. This was an accessibility identification defect, not evidence of failed presentation.
+
+Removed that container identifier while retaining `presentedSwiftUITitle`, `dismissSwiftUIModal` and `modalStack` on their respective controls. Added `testSwiftUISheetControlsKeepDistinctAccessibilityIdentifiers` to check separate identifiers, a hittable Done button and successful dismissal. There are now 16 UI tests. The original five assertions remain in place; waits were not loosened and failures were not suppressed.
+
+Runtime confirmation of the fix remains pending a new Simulator run. Source review confirmed the diagnosis and minimal change. Build and rerun evidence is recorded in `/private/tmp/coordinator-sheet-identifier-build.log` and `/private/tmp/coordinator-sheet-identifier-ui-tests.log` for this local session. The test-result bundle itself and exported UI hierarchy are not published.
+
+Follow-up result: Debug Simulator `build-for-testing` passed after the identifier fix, including the application and both test targets. A rerun against the same iPhone 17 device used by the user's result bundle failed at destination discovery before any test executed: CoreSimulatorService remained inaccessible from this process. No post-fix test pass is claimed. Rerun Product → Test in the working Xcode Simulator session to verify the five original tests plus the new identifier regression.
+
+## Global UIKit / native SwiftUI alerts (2026-11-07)
+
+Implemented a shared main-actor alert queue and two native renderers. Requests wait for scene activation, present over the actual visible content/modal, and hold subsequent navigation until native dismissal finishes. Authenticated deep-link errors use Retry/Cancel from any screen while retaining original session/intent ownership. Reset/disconnect discard stale requests/callbacks. Demo controls and the XIB lab can request either renderer; the error-style picker selects the renderer for deep-link errors. See `docs/GlobalAlerts.md` and the updated README.
+
+Verification for this feature:
+
+- Debug Simulator `build-for-testing`: passed, app and both test targets; Swift 5 language mode / iOS 17 unchanged.
+- Portable Swift Testing: **21 tests in 4 suites passed**, including seven new alert-queue tests.
+- Native suite now contains 39 unit declarations and 21 UI methods; three new native flow tests cover inactive buffering, Retry preserving session/modal, and reset cancellation. Five new UI methods cover cross-framework presentation, existing feature modals, protected phone, OS deep links and foreground re-entry.
+- UI execution attempt: **blocked before any test ran**, CoreSimulator Connection refused / no matching available device. Native SwiftUI alert anchoring and animations are compiled and source-reviewed, not claimed runtime-tested.
+- Independent source review found no blocking defect. The background UI test immediately reactivates via OS URL open; it tests background-to-foreground delivery, while pure/unit tests establish inactive queue buffering.
+- Logs: `/private/tmp/coordinator-alert-build.log`, `/private/tmp/coordinator-alert-portable-tests.log`, `/private/tmp/coordinator-alert-ui-tests.log`.
+
+No audit-plan refactor, Swift upgrade, deployment-target change or GitHub publication is included in this feature work. The audit reports describe their earlier source snapshot; their line references are historical after this extension.

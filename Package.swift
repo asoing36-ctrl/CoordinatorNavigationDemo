@@ -8,11 +8,11 @@ let package = Package(
     products: [],
     targets: [
         .target(name: "CoordinatorNavigationDemo", path: ".",
-            exclude: ["App", "Features", "Core/Navigation", "Core/DependencyInjection", "Core/Session", "CoordinatorNavigationDemoTests", "CoordinatorNavigationDemoUITests", "CoordinatorNavigationDemo.xcodeproj", "docs", "README.md"],
-            sources: ["Domain", "Data", "Core/DeepLinks"]),
+            exclude: ["App", "Features", "Core/Navigation", "Core/DependencyInjection", "Core/Session", "Core/Alerts/AlertPresentation.swift", "CoordinatorNavigationDemoTests", "CoordinatorNavigationDemoUITests", "CoordinatorNavigationDemo.xcodeproj", "docs", "README.md"],
+            sources: ["Domain", "Data", "Core/DeepLinks", "Core/Alerts/AppAlert.swift"]),
         .testTarget(name: "PortableCoreTests", dependencies: ["CoordinatorNavigationDemo"],
             path: "CoordinatorNavigationDemoTests", exclude: ["ArchitectureTests.swift"],
-            sources: ["DomainTests.swift", "IntentProcessorTests.swift"])
+            sources: ["DomainTests.swift", "IntentProcessorTests.swift", "AppAlertQueueTests.swift"])
     ],
     swiftLanguageModes: [.v5]
 )

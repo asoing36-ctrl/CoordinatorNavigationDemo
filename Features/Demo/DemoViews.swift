@@ -3,6 +3,8 @@ import SwiftUI
 @MainActor final class DemoModel: ObservableObject {
     @Published var code = "NEW-USER"
     @Published var status = "Ready"
+    @Published var alertStyle: AppAlertStyle = .uikit
+    var showAlert: ((AppAlertStyle) -> Void)?
     @Published var busy = false
     @Published var flow = "launching"
     @Published var authentication = "Unauthenticated"
@@ -49,6 +51,13 @@ struct DemoControls: View {
             Button("Reset / Start unauthenticated") { model.reset?(false) }.disabled(model.busy).accessibilityIdentifier("resetDemo")
             Text(model.status).font(.footnote).accessibilityIdentifier("demoStatus")
         }
+        Section("Alerts") {
+            Picker("Error alert style", selection: $model.alertStyle) {
+                Text("UIKit").tag(AppAlertStyle.uikit)
+                Text("SwiftUI").tag(AppAlertStyle.swiftUI)
+            }.pickerStyle(.segmented).accessibilityIdentifier("errorAlertStyle")
+            AlertDemoButtons(show: { model.showAlert?($0) })
+        }
         #if DEBUG
         Section("Diagnostics • observed state") {
             LabeledContent("Flow", value: model.flow)
@@ -84,5 +93,13 @@ struct DiagnosticsView: View {
                 Text("Queued: \(model.pendingCount) • Back blocked: \(model.backBlocked ? "Yes" : "No")")
             }
         }.font(.caption2).padding(10).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct AlertDemoButtons: View {
+    let show: (AppAlertStyle) -> Void
+    var body: some View {
+        Button("Show UIKit alert") { show(.uikit) }.accessibilityIdentifier("showUIKitAlert")
+        Button("Show SwiftUI alert") { show(.swiftUI) }.accessibilityIdentifier("showSwiftUIAlert")
     }
 }

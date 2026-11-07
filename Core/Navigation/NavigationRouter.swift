@@ -23,6 +23,9 @@ enum BackNavigationPolicy { case allowed, blocked }
     func setRoot(_ controller: UIViewController, route: Route)
     func present(_ controller: UIViewController, route: PresentationRoute)
     func dismiss()
+    func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void)
+    func setSceneActive(_ active: Bool)
+    func cancelAlerts()
 }
 
 /// Also catches direct UIKit pop calls and navigation bar Back actions.
@@ -46,6 +49,8 @@ enum BackNavigationPolicy { case allowed, blocked }
     private let navigationController: PolicyNavigationController
     private var metadata: [ObjectIdentifier: Screen] = [:]
     private var queue: [Operation] = []
+    private let alerts = AppAlertQueue()
+    private var alertPresentation: AlertPresentation?
     private var transitioning = false
     private(set) var presentedRoute: PresentationRoute?
     private weak var presentedController: UIViewController?
@@ -76,15 +81,53 @@ enum BackNavigationPolicy { case allowed, blocked }
     func replaceStack(_ screens: [Screen]) {
         guard !screens.isEmpty else { return }
         queue.removeAll() // Discard obsolete commands when explicitly ending/resetting a flow.
+        cancelAlerts()
         if navigationController.presentedViewController != nil { queue.append(.dismiss) }
         enqueue(.replace(screens))
     }
     func setRoot(_ controller: UIViewController, route: Route) { replaceStack([Screen(controller: controller, route: route)]) }
     func present(_ controller: UIViewController, route: PresentationRoute) { enqueue(.present(controller, route)) }
     func dismiss() { enqueue(.dismiss) }
+    func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void = { _ in }) {
+        alerts.enqueue(request, completion: completion)
+        drain()
+    }
+    func setSceneActive(_ active: Bool) {
+        alerts.sceneIsActive = active
+        alertPresentation?.setSceneActive(active)
+        if active { drain() }
+    }
+    func cancelAlerts() {
+        alerts.cancelAll()
+        alertPresentation?.cancel()
+    }
+    private func presentNextAlert() {
+        guard alerts.sceneIsActive,
+              let window = navigationController.viewIfLoaded?.window ?? navigationController.presentedViewController?.viewIfLoaded?.window,
+              let root = window.rootViewController else { return }
+        let presenter = AlertPresentation.visibleController(from: root)
+        guard !(presenter is UIAlertController) else { return }
+        if let transition = presenter.transitionCoordinator {
+            let registered = transition.animate(alongsideTransition: nil) { [weak self] _ in
+                DispatchQueue.main.async { [weak self] in self?.drain() }
+            }
+            if registered { return }
+        }
+        guard !presenter.isBeingPresented, !presenter.isBeingDismissed,
+              let request = alerts.beginNext() else { return }
+        let presentation = AlertPresentation(request: request, presenter: presenter, root: root) { [weak self] result in
+            guard let self else { return }
+            self.alertPresentation = nil
+            if let result { self.alerts.complete(id: request.id, action: result) }
+            self.drain()
+        }
+        alertPresentation = presentation
+        presentation.present()
+    }
     private func enqueue(_ operation: Operation) { queue.append(operation); drain() }
     private func drain() {
-        guard !transitioning, !queue.isEmpty else { return }
+        guard !transitioning, alertPresentation == nil else { return }
+        guard !queue.isEmpty else { presentNextAlert(); return }
         let operation = queue.removeFirst()
         let animated = navigationController.viewIfLoaded?.window != nil || navigationController.presentedViewController?.viewIfLoaded?.window != nil
         switch operation {

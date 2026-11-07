@@ -15,6 +15,8 @@
                 <outlet property="uikitButton" destination="uikit" id="out-uikitButton" />
                 <outlet property="dismissButton" destination="dismiss" id="out-dismissButton" />
                 <outlet property="presentSheetButton" destination="presentSheet" id="out-presentSheetButton" />
+                <outlet property="uikitAlertButton" destination="uikitAlert" id="out-uikitAlertButton" />
+                <outlet property="swiftUIAlertButton" destination="swiftUIAlert" id="out-swiftUIAlertButton" />
             </connections>
         </placeholder>
         <placeholder placeholderIdentifier="IBFirstResponder" id="first" customClass="UIResponder" />
@@ -78,6 +80,26 @@
                                     <state key="normal" title="Present SwiftUI sheet" />
                                     <connections>
                                         <action selector="presentSheetTapped:" destination="owner" eventType="touchUpInside" id="presentSheet-action" />
+                                    </connections>
+                                </button>
+                                <button opaque="NO" buttonType="system" translatesAutoresizingMaskIntoConstraints="NO" id="uikitAlert">
+                                    <rect key="frame" x="0" y="0" width="340" height="48" />
+                                    <constraints>
+                                        <constraint firstAttribute="height" constant="48" priority="999" id="uikitAlert-height" />
+                                    </constraints>
+                                    <state key="normal" title="Show UIKit alert" />
+                                    <connections>
+                                        <action selector="uikitAlertTapped:" destination="owner" eventType="touchUpInside" id="uikitAlert-action" />
+                                    </connections>
+                                </button>
+                                <button opaque="NO" buttonType="system" translatesAutoresizingMaskIntoConstraints="NO" id="swiftUIAlert">
+                                    <rect key="frame" x="0" y="0" width="340" height="48" />
+                                    <constraints>
+                                        <constraint firstAttribute="height" constant="48" priority="999" id="swiftUIAlert-height" />
+                                    </constraints>
+                                    <state key="normal" title="Show SwiftUI alert" />
+                                    <connections>
+                                        <action selector="swiftUIAlertTapped:" destination="owner" eventType="touchUpInside" id="swiftUIAlert-action" />
                                     </connections>
                                 </button>
                             </subviews>
