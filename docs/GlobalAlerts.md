@@ -1,45 +1,72 @@
-# Global alert implementation
+# Global alerts and URL delivery
 
-This feature adds native UIKit and native SwiftUI alerts to the existing single-stack app. It does not execute the audit's unrelated refactoring plan. Swift 5 / iOS 17 and actual XIB integration remain unchanged.
+Swift 5 / iOS 17, the coordinator hierarchy, one navigation controller and actual XIB integration remain unchanged. This revision addresses AUD-14/AUD-17 and the alert request invariant from F19. It does not execute the architecture simplification plan.
 
-## Ownership and delivery
+## Request ownership
 
-- `Core/Alerts/AppAlert.swift`: Sendable request/action/style values and a Foundation-only, main-actor FIFO queue. Keys are semantic constants and never include access codes/URLs. Active/pending duplicates are suppressed; completion validates request identity and allowed action. Cancellation discards callbacks. A completed request may be submitted again.
-- `NavigationRouter`: owns alert presentation together with navigation transitions. Scene activity gates alert start, ordinary navigation waits while an alert is owned, and topmost presenter discovery starts from the router's own window/root rather than global UIApplication state. Root replacement cancels alerts before replacing feature screens.
-- `Core/Alerts/AlertPresentation.swift`: one renderer lifetime. UIKit uses UIAlertController. SwiftUI uses `.alert` anchored in a hosting child of the visible content controller, never a child added to UINavigationController's managed stack. No extra window or navigation controller is created. Anchor cleanup happens only after native alert dismissal.
-- `SceneDelegate`: forwards active/inactive state; disconnect stops the coordinator and releases scene owners. Native background suspension is respected; no background execution entitlement is added.
-- `AppCoordinator`: owns business error outcomes. Authenticated failures retain the active intent/original session through Retry/Cancel. Reset/stop invalidate pending alert callbacks. No business code is executed inside the views or alert renderer.
+`AppAlertRequest` carries a safe semantic key, renderer, text and supported actions. `AppAlertQueue` rejects empty/repeated actions before they can own the queue. Active/pending duplicates coalesce by key; distinct accepted requests wait FIFO within the alert queue. A matched user completion clears ownership before its callback. Cancelling/rejecting a presentation clears only that active request, without a business callback, so the next request can proceed. Reset/stop discard all active/pending requests and callbacks. The delivery contract is at-most-once, not guaranteed callback delivery for coalesced/cancelled requests.
 
-The native SwiftUI API dismisses after the action runs. This implementation therefore checks the actual native presented controller leaving its window rather than immediately starting another UIKit transition in the button handler. The short dismissal monitor uses weak owner capture and cancellable Task.sleep; it is not a fixed delay that assumes dismissal succeeded. Presentation failures outside normal lifecycle/visibility remain an area for attached-window integration verification.
+SceneDelegate forwards activation to the router. Starting a new request requires an active scene, an attached window and a stable visible presenter. Existing native alerts remain owned when the scene resigns; the next request waits. Navigation commands take priority over waiting alerts. Normal root replacement still cancels all alerts; the audit's global-versus-flow lifetime policy decision remains deferred. Queues remain in memory and unbounded; capacity policy is a separate task.
 
-## Behavior
+## Native rendering and dismissal
 
-| Situation | Result |
-|---|---|
-| Request while scene inactive/backgrounded | Queued; no native alert starts until active |
-| App becomes active | First distinct pending request presents over current stable destination |
-| Request from SwiftUI or a XIB callback | Either renderer can be selected; screen technology does not choose presenter |
-| Request while feature sheet/full-screen modal visible | Alert above it; user modal and underlying push stack survive acknowledgment |
-| New request while alert visible | Distinct requests wait FIFO; same semantic key suppressed |
-| Authenticated redeem failure | Global Retry/Cancel, same original session; no additional login or phone screen |
-| Unauthenticated redeem failure | Existing visible redeem Retry/Return UI preserved |
-| Invalid URL | Generic global unsupported-link alert; no sensitive URL/code included |
-| Reset/disconnect | Queue/callbacks cancelled; obsolete request cannot resume an old flow |
+`AlertPresentation` owns one exact controller and a small lifecycle: idle, presenting, visible, dismissing, finished.
 
-The FIFO is in memory and unbounded for this small demo, like the existing intent queue. A production capacity/overflow policy remains a product decision; this feature does not silently drop critical errors. Error alert lifetime is separate from pushed route and feature-modal metadata. An alert does not become a navigation route.
+- UIKit: present an exact `UIAlertController`.
+- SwiftUI: present a transparent `UIHostingController` with `.overFullScreen`, then activate its native `.alert`. This transient host lives above the current feature/modal; it is not inserted into another hosting view, managed navigation stack or second window. It has no Close action or independent navigation state.
+- UIKit presentation completion followed by a main-queue turn signals readiness. A native SwiftUI `.onChange` updates local `@State`, which owns the `.alert` binding. Native dismissal changes only that local state, not an observed `@Published` property. There is no `onAppear` publication. Scene eligibility and cancellation are checked again before signaling readiness.
+- Selection is accepted once, including an action arriving before animated presentation completion. Cancellation can override a selected action awaiting cleanup.
+- Cancellation during presentation waits for the real presentation completion. Dismissal waits for an in-flight native transition's completion, then dismisses only the exact owned subtree. Underlying feature modals remain intact. Cleanup uses UIKit's dismissal completion, not a guessed topmost controller or a window/polling timer.
+- If UIKit rejects presentation before attaching the owned controller, the request is cancelled without an action and queue ownership is released.
 
-## Demo and tests
+The owned host is an intentional UIKit/SwiftUI integration boundary. It adds a transient presentation for SwiftUI alerts, while preserving native `.alert`, XIB support and the single push stack. The user's completed iPhone 17 / iOS 27.0 run passed all 74 declarations and recorded no runtime warnings. The earlier containment/publication warnings are absent from its console. Native test-window focus-engine diagnostics remain separately documented; this is not a claim of a silent console or memory profiling.
 
-Use Show UIKit alert / Show SwiftUI alert on the demo screens. The XIB lab has real connected buttons for both. The error-style picker controls global deep-link errors without changing the underlying destination.
+Apple references: [dismissal ownership and completion](https://developer.apple.com/documentation/uikit/uiviewcontroller/dismiss(animated:completion:)), [system URL dispatch](https://developer.apple.com/documentation/xcuiautomation/xcuisystem/open(_:)).
 
-Added tests:
+## Business errors
 
-- Seven portable `AppAlertQueueTests`: inactive buffer/activation, FIFO across styles, active/pending deduplication, valid/once-only completion, deactivation, cancel/stale callbacks and reentrant enqueue.
-- Three `GlobalAlertFlowTests`: background-buffered authenticated error preserving details; SwiftUI-style Retry preserving session/modal with zero login; reset discarding a deferred alert.
-- Five XCUITests: both styles over SwiftUI and XIB; both over sheets/full-screen modals; authenticated OS deep-link error over details; background URL activation with error Retry above full-screen XIB; and a global alert above protected phone without allowing Back.
+Authenticated failures retain the original session and active redeem intent until Retry/Cancel. Retry reuses that original context; Cancel preserves navigation/session and advances the next business intent. No login/create/phone flow is introduced for an authenticated grant. Unauthenticated failures retain the existing redeem Retry/Return screen. Unsupported URLs use generic text without showing/logging URLs or access codes.
 
-Current verification results are recorded in `docs/Verification.md`. Native SwiftUI/UIViewController bridging, presentation animation and real OS activation must be executed on a working Simulator; build success or portable queue tests alone do not establish those behaviors.
+## Cold, warm and background URL delivery
 
-Reference: Apple's native SwiftUI alert action/lifetime contract is documented at https://developer.apple.com/documentation/swiftui/view/alert(_:ispresented:actions:message:)-3rabc .
+- Cold: install the initial Welcome/root and window immediately. Complete optional authenticated Debug setup before delivering connection URLs. A retained scene startup task is cancelled on disconnect; generation/cancellation guards prevent obsolete startup delivery. Additional URL/activity callbacks received during setup wait in a scene-startup buffer, then enter the same coordinator parser/processor.
+- Warm/background: system-dispatched URLs enter the existing scene handlers and coordinator pipeline. The tests use `XCUIDevice.shared.system.open`, not `XCUIApplication.open`, for instance preservation. Background tests wait for a background/suspended state before dispatch.
+- Explicit cold UI tests still use `XCUIApplication.open`, after terminating the app. One covers new-user onboarding; another covers ADD-CRED after authenticated seeding.
+- Debug diagnostics expose an opaque instance ID. Tests compare it before/after delivery so recreating an equivalent screen cannot silently satisfy preservation assertions. It carries no account/code/token and never drives navigation.
+- No background execution entitlement is added. iOS may suspend work. An error received while inactive waits for activation; foreground re-entry is distinct from proving execution while suspended.
 
-The background UI test uses Home then OS URL open, which reactivates the app. It tests real URL entry/foreground re-entry, not guaranteed backend completion during suspension. The inactive queue and flow unit tests establish buffering logically; only a controllable runtime scenario could demonstrate an actual response arriving while the scene remains inactive.
+## Regression coverage added or corrected
+
+- Queue: invalid action arrays; matching cancellation releases only the current request and never calls its action.
+- Startup: actual composition/use case/backend with zero mock delay, authenticated cold URL ordering, and a genuinely pushed protected phone for unauthenticated cold delivery.
+- Attached-window native tests: wait for an actual native alert, then test hosting child containment, cancellation/queue release, exact modal preservation, phone protection/Skip, inactive business failure/reset, and immediate cancellation during presentation. The suite serializes its own windows, waits for actual viewDidAppear before presenting, and awaits native cleanup before restoring/releasing windows. Wait failures preserve their caller source location.
+- UI: corrected warm/background/phone URL dispatch with instance continuity; separate cold cases; duplicate/distinct OS links during protected phone; a new incoming link queued while a SwiftUI alert is visible, followed by another presentation.
+
+Current source contains **49 native unit declarations + 25 UI methods = 74 declarations**. The portable subset contains **23 declarations in four suites**. These are source inventories, not passing results. Existing parameterized parser/error tests and four native style-parameterized methods expand execution counts.
+
+## Verification handoff
+
+**The user's latest native run passed: 49 unit + 25 UI = 74 declarations, 86 expanded runs, zero failures/skips and zero recorded runtime warnings.** Bundle: `Test-CoordinatorNavigationDemo-2026.11.07_16-59-02-+0200.xcresult` in DerivedData, iPhone 17 / iOS 27.0. Earlier SwiftUI publication/containment warnings are absent from its console. UIKit focus-engine diagnostics remain in native test-window teardown, without assertion failures; their cause is unproven. See [Verification.md](Verification.md) for the exact evidence and remaining limits. The agent did not run builds or tests; it only inspected the user's completed results.
+
+In Xcode, open the native project, select an iPhone Simulator and use Product → Test. For command-line execution, replace DEVICE-UDID with an available device:
+
+```sh
+xcodebuild test \
+  -project CoordinatorNavigationDemo.xcodeproj \
+  -scheme CoordinatorNavigationDemo \
+  -destination 'platform=iOS Simulator,id=DEVICE-UDID' \
+  -parallel-testing-enabled NO \
+  -resultBundlePath /private/tmp/CoordinatorAlertReliability.xcresult \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+**Result path:** `/private/tmp/CoordinatorAlertReliability.xcresult` exists only if the command above runs with that `-resultBundlePath`. Product → Test in Xcode saves results under `~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-*/Logs/Test/` instead. `xcresulttool` reads a result; it neither runs tests nor creates the bundle. Use the path from Xcode's Report navigator for that run.
+
+Use a fresh result-bundle path on subsequent runs. Collect the build/test trace and the summary:
+
+```sh
+xcrun xcresulttool get test-results summary \
+  --path /private/tmp/CoordinatorAlertReliability.xcresult
+```
+
+Inspect runtime warnings as well as assertions: unsupported hosting-view containment and publishing during view updates must disappear. Confirm both renderer styles above SwiftUI, pushed XIB, sheet/full-screen and protected phone; Cancel/Retry/Skip must preserve or replace exactly the intended stack. Include cold URL setup, background re-entry, repeated/queued URLs and cancellation during presentation. Attach the new xcresult or its trace/summary before declaring these runtime issues resolved.

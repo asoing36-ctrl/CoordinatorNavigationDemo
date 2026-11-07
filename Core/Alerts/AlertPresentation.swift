@@ -1,27 +1,36 @@
 import SwiftUI
 import UIKit
 
-/// One alert's UIKit lifetime. The SwiftUI renderer is a native .alert anchored
-/// in a tiny hosting child of the actual visible content controller (including XIBs).
+/// Owns exactly one presentation subtree; it never dismisses the feature below it.
 @MainActor final class AlertPresentation {
+    private enum Phase { case idle, presenting, visible, dismissing, finished }
+    private enum Outcome { case selected(AppAlertAction), cancelled }
+
     private let request: AppAlertRequest
     private weak var presenter: UIViewController?
-    private weak var root: UIViewController?
-    private var anchor: UIViewController?
-    private var nativeAlert: UIViewController?
+    private var controller: UIViewController?
     private var swiftUIState: SwiftUIAlertState?
-    private var dismissalTask: Task<Void, Never>?
-    private var finishing = false
+    private var phase: Phase = .idle
+    private var outcome: Outcome?
+    private var sceneIsActive = true
     private var completion: ((AppAlertAction?) -> Void)?
 
-    init(request: AppAlertRequest, presenter: UIViewController, root: UIViewController,
+    init(request: AppAlertRequest, presenter: UIViewController,
          completion: @escaping (AppAlertAction?) -> Void) {
-        self.request = request; self.presenter = presenter; self.root = root
+        self.request = request
+        self.presenter = presenter
         self.completion = completion
     }
 
     func present() {
-        guard let presenter else { finish(nil); return }
+        guard phase == .idle else { return }
+        guard let presenter, presenter.viewIfLoaded?.window != nil,
+              presenter.presentedViewController == nil else {
+            outcome = .cancelled
+            finish()
+            return
+        }
+        let owned: UIViewController
         switch request.style {
         case .uikit:
             let alert = UIAlertController(title: request.title, message: request.message, preferredStyle: .alert)
@@ -30,90 +39,104 @@ import UIKit
                     self?.selected(action)
                 })
             }
-            nativeAlert = alert
-            presenter.present(alert, animated: true)
+            owned = alert
         case .swiftUI:
             let state = SwiftUIAlertState(request: request) { [weak self] action in self?.selected(action) }
             swiftUIState = state
-            let host = UIHostingController(rootView: SwiftUIAlertAnchor(state: state))
-            anchor = host
+            let host = UIHostingController(rootView: SwiftUIAlertContent(state: state))
+            host.modalPresentationStyle = .overFullScreen
+            host.isModalInPresentation = true
             host.view.backgroundColor = .clear
-            host.view.isUserInteractionEnabled = false
-            presenter.addChild(host)
-            presenter.view.addSubview(host.view)
-            host.view.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                host.view.widthAnchor.constraint(equalToConstant: 1),
-                host.view.heightAnchor.constraint(equalToConstant: 1),
-                host.view.centerXAnchor.constraint(equalTo: presenter.view.centerXAnchor),
-                host.view.centerYAnchor.constraint(equalTo: presenter.view.centerYAnchor)
-            ])
-            host.didMove(toParent: presenter)
+            host.view.isOpaque = false
+            // This is an owned modal, not a subview inserted into another hosting view.
+            owned = host
+        }
+        controller = owned
+        phase = .presenting
+        presenter.present(owned, animated: request.style == .uikit) { [weak self] in
+            guard let self, self.phase == .presenting else { return }
+            self.phase = .visible
+            if self.outcome != nil { self.scheduleDismissal() }
+            else { self.scheduleSwiftUIAppearance() }
+        }
+        // A rejected UIKit presentation does not call completion. Do not strand the queue.
+        if phase == .presenting, owned.presentingViewController == nil, !owned.isBeingPresented {
+            outcome = .cancelled
+            finish()
+        }
+    }
+
+    func setSceneActive(_ active: Bool) {
+        sceneIsActive = active
+        if active { scheduleSwiftUIAppearance() }
+    }
+
+    func cancel() {
+        guard phase != .finished else { return }
+        // Cancellation also suppresses an action already waiting for its dismissal completion.
+        outcome = .cancelled
+        if phase == .idle { finish() }
+        else { scheduleDismissal() }
+    }
+
+    private func scheduleSwiftUIAppearance() {
+        // UIKit's presentation callback, followed by a main-queue turn, is outside the
+        // SwiftUI view-update/onAppear callback. Recheck scene/cancellation at execution.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.phase == .visible, self.outcome == nil, self.sceneIsActive else { return }
+            self.swiftUIState?.show()
         }
     }
 
     private func selected(_ action: AppAlertAction) {
-        guard !finishing else { return }
-        finishing = true
-        captureNativeAlert()
-        // Both UIKit actions and SwiftUI .alert dismiss themselves after the action.
-        // Wait for the actual controller to leave its window before draining navigation.
-        waitForDismissal(result: action)
+        guard phase == .visible || phase == .presenting,
+              outcome == nil, request.actions.contains(action) else { return }
+        outcome = .selected(action)
+        scheduleDismissal()
     }
 
-    func setSceneActive(_ active: Bool) {
-        swiftUIState?.setSceneActive(active)
+    private func scheduleDismissal() {
+        // Cancellation during presentation waits for that presentation's real completion.
+        guard phase == .visible else { return }
+        phase = .dismissing
+        // Native alert actions start their automatic dismissal after the handler returns.
+        DispatchQueue.main.async { [weak self] in self?.dismissOwnedController() }
     }
 
-    func cancel() {
-        if finishing { return }
-        finishing = true
-        captureNativeAlert()
-        swiftUIState?.cancelled = true
-        swiftUIState?.visible = false
-        if request.style == .uikit, let alert = nativeAlert {
-            if alert.isBeingPresented, let transition = alert.transitionCoordinator {
-                let registered = transition.animate(alongsideTransition: nil) { [weak alert] _ in
-                    alert?.dismiss(animated: false)
-                }
-                if !registered { alert.dismiss(animated: false) }
-            } else { alert.dismiss(animated: false) }
-        }
-        waitForDismissal(result: nil)
-    }
-
-    private func captureNativeAlert() {
-        guard nativeAlert == nil, let root else { return }
-        let visible = Self.visibleController(from: root)
-        if visible !== presenter && visible !== anchor { nativeAlert = visible }
-    }
-
-    private func waitForDismissal(result: AppAlertAction?) {
-        dismissalTask = Task { @MainActor [weak self] in
-            // SwiftUI schedules its native dismissal after its action closure returns.
-            await Task.yield()
-            while !Task.isCancelled {
-                guard let gone = self?.finishIfDismissed(result: result) else { return }
-                if gone { return }
-                do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+    private func dismissOwnedController() {
+        guard phase == .dismissing, let owned = controller else { return }
+        var top = owned
+        while let child = top.presentedViewController { top = child }
+        if top.isBeingPresented || top.isBeingDismissed || owned.isBeingDismissed,
+           let transition = top.transitionCoordinator ?? owned.transitionCoordinator {
+            let registered = transition.animate(alongsideTransition: nil) { [weak self] _ in
+                // UIKit may still expose the finishing coordinator inside its callback.
+                DispatchQueue.main.async { [weak self] in self?.dismissOwnedController() }
             }
+            if registered { return }
         }
+        guard let owner = owned.presentingViewController,
+              owner.presentedViewController === owned else {
+            // Already dismissed/detached. This exact owned presentation is gone.
+            finish()
+            return
+        }
+        // Dismiss ONLY our subtree, including SwiftUI's native alert if it still exists.
+        // The owner's existing feature/modal is below this child and remains untouched.
+        owner.dismiss(animated: request.style == .uikit) { [weak self] in self?.finish() }
     }
 
-    private func finishIfDismissed(result: AppAlertAction?) -> Bool {
-        if nativeAlert?.viewIfLoaded?.window != nil { return false }
-        finish(result)
-        return true
-    }
-
-    private func finish(_ result: AppAlertAction?) {
-        anchor?.willMove(toParent: nil)
-        anchor?.view.removeFromSuperview()
-        anchor?.removeFromParent()
-        anchor = nil; swiftUIState = nil; nativeAlert = nil
+    private func finish() {
+        guard phase != .finished else { return }
+        phase = .finished
+        let action: AppAlertAction?
+        if case .selected(let selected)? = outcome { action = selected }
+        else { action = nil }
+        controller = nil
+        swiftUIState = nil
         let callback = completion
         completion = nil
-        callback?(result)
+        callback?(action)
     }
 
     static func visibleController(from controller: UIViewController) -> UIViewController {
@@ -126,41 +149,43 @@ import UIKit
         if let tab = controller as? UITabBarController, let selected = tab.selectedViewController {
             return visibleController(from: selected)
         }
-        // The application shell has the navigation controller and diagnostics as siblings.
+        // The application shell has navigation and diagnostics as siblings.
         if let nav = controller.children.first(where: { $0 is UINavigationController }) {
             return visibleController(from: nav)
         }
         return controller
     }
-
-    deinit { dismissalTask?.cancel() }
 }
 
 @MainActor private final class SwiftUIAlertState: ObservableObject {
     let request: AppAlertRequest
     let select: (AppAlertAction) -> Void
-    @Published var visible = false
-    var cancelled = false
+    @Published private(set) var ready = false
     private var started = false
-    private var sceneIsActive = true
-    private var appeared = false
+
     init(request: AppAlertRequest, select: @escaping (AppAlertAction) -> Void) {
-        self.request = request; self.select = select
+        self.request = request
+        self.select = select
     }
-    func didAppear() { appeared = true; showIfReady() }
-    func setSceneActive(_ active: Bool) { sceneIsActive = active; showIfReady() }
-    private func showIfReady() {
-        guard appeared, sceneIsActive, !started, !cancelled else { return }
-        started = true; visible = true
+    func show() {
+        guard !started else { return }
+        started = true
+        ready = true
     }
 }
 
-private struct SwiftUIAlertAnchor: View {
+private struct SwiftUIAlertContent: View {
     @ObservedObject var state: SwiftUIAlertState
+    @State private var visible = false
+    init(state: SwiftUIAlertState) { self.state = state }
     var body: some View {
         Color.clear
-            .onAppear { state.didAppear() }
-            .alert(state.request.title, isPresented: $state.visible) {
+            // SwiftUI resets this binding during its dismissal update. Keep that
+            // write in local State rather than publishing objectWillChange there.
+            .onChange(of: state.ready, initial: true) { _, ready in
+                if ready { visible = true }
+            }
+            .alert(state.request.title, isPresented: $visible) {
                 ForEach(state.request.actions, id: \.self) { action in
                     Button(action.title, role: action == .cancel ? .cancel : nil) { state.select(action) }
                 }

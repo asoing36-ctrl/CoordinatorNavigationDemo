@@ -1,5 +1,54 @@
 # Verification record
 
+## Current result — user Simulator run passed (2026-11-07, 16:59)
+
+The user built and ran the complete current suite in Xcode. The agent inspected the completed bundle without running builds/tests:
+
+`Test-CoordinatorNavigationDemo-2026.11.07_16-59-02-+0200.xcresult`
+
+Location: `~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`. Destination: iPhone 17 / iOS 27.0 Simulator, arm64.
+
+| Check | Actual result |
+|---|---|
+| Native Swift Testing | **49/49 declarations passed** |
+| XCUITest | **25/25 methods passed** |
+| Complete suite | **74 passed, 0 failed, 0 skipped**; **86 expanded parameter runs passed** |
+| xcresult recorded runtime warnings | **0** |
+| Console: unsupported hosting-view insertion | **0 matching lines** |
+| Console: publication during view updates | **0 matching lines** |
+| Previously failing native lifecycle cases | Passed, including both queued-navigation styles and SwiftUI containment |
+| Previously failing warm/background URL cases | Passed, alongside cold startup and queued/repeated delivery |
+
+The source changes validated by this user run include local State for SwiftUI's dismissal binding and native-window appearance/cleanup synchronization. No production source changed after this result was inspected; only verification documentation was refreshed. The agent did not initiate any build or test run.
+
+**Remaining console diagnostic:** eight distinct UIKit `Locked environment ... was deallocated after being locked` entries remain across four native window-fixture methods. They are absent from the UI-test console and are not recorded in xcresult's runtimeWarnings. Their cause is not established; do not equate an all-green result with a completely silent console or a memory-profile pass. Keep this as a focused native test-window/focus lifecycle investigation; no production retain cycle or observed app navigation failure is inferred.
+
+Swift 5 language mode / iOS 17 deployment settings remain unchanged. This result validates iOS 27.0 Simulator behavior, not a separate iOS 17 device/runtime run. The supplemental macOS Swift-package command was not independently rerun; its shared test declarations executed in the native target.
+
+All entries below are historical and predate this current result.
+
+
+## Earlier reliability run and follow-up (2026-11-07, 16:34)
+
+The user ran the revised app and complete suites in Xcode. Result bundle: `Test-CoordinatorNavigationDemo-2026.11.07_16-34-51-+0200.xcresult`, in the project's DerivedData `Logs/Test` directory, on iPhone 17 / iOS 27.0.
+
+- **72 passed / 2 failed** of 74 declarations; expanded parameter runs: **83 passed / 3 failed**.
+- **All 25 UI methods passed**, including warm/background error recovery, authenticated cold setup, queued URLs and repeated alert presentation. The earlier two deep-link UI failures passed.
+- Two native unit declarations failed (three parameter cases): `swiftUIAlertDoesNotAddChildrenToTheUnderlyingHostingController` and `cancellationReleasesQueuedNavigationWithoutInvokingTheAction` for both styles. Every failure pointed to the same generic wait helper, obscuring which wait failed.
+- The unsupported hosting-view containment warning is absent from this result. Three publication-during-update warnings remain, each immediately after tapping OK on a SwiftUI alert, in the modal, mixed-framework and queued-alert UI cases.
+
+Follow-up changes after reading this result:
+
+- SwiftUI's dismissal binding is now local `@State`. The observable model signals readiness only; native dismissal no longer writes directly to `@Published` during SwiftUI's update.
+- The native test harness now installs content before showing its window (matching SceneDelegate) and awaits an actual viewDidAppear signal. Previously, the three failing cases presented immediately after creating a window, unlike successful cases with intervening feature navigation. This is a source-supported setup concern; confirmation awaits rerun.
+- Async teardown awaits renderer/transition cleanup and modal dismissal before releasing the test window. Assertions can observe a derived router `hasAlertPresentation` value rather than infer completion from view disappearance.
+- Wait helpers preserve their caller's SourceLocation so a future failure identifies the actual setup/appearance/dismissal/navigation wait.
+
+**No builds or tests were run by the agent. These follow-up changes have not been built or executed.** Source inventory remains 49 native unit declarations and 25 UI methods; portable subset 23 declarations. See [GlobalAlerts.md](GlobalAlerts.md) for commands and result-path guidance. The original 58/2 audit baseline and the user's newer 72/2 run both predate the latest follow-up and are not current green results.
+
+The following entries are historical execution records.
+
+
 Executed on 2026-11-07 with Xcode 27.1 (27A9275), Swift 5 language mode, complete concurrency checking, iOS 17 deployment target.
 
 | Check | Actual result |

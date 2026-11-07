@@ -9,13 +9,13 @@ import SwiftUI
     let rootViewController: UIViewController
     private var started = false
 
-    init() {
+    init(backend: MockBackend = MockBackend()) {
         let navigation = PolicyNavigationController()
         navigation.navigationBar.prefersLargeTitles = false
         navigationController = navigation
         let router = NavigationRouter(navigationController: navigation)
         self.router = router
-        let coordinator = AppCoordinator(router: router, backend: MockBackend())
+        let coordinator = AppCoordinator(router: router, backend: backend)
         self.coordinator = coordinator
         rootViewController = DemoRootViewController(navigationController: navigation, demo: coordinator.demo)
     }
@@ -25,6 +25,15 @@ import SwiftUI
         started = true
         rootViewController.loadViewIfNeeded()
         coordinator.start()
+    }
+
+    /// Initial OS URLs must run after optional demo session setup, which clears old flows.
+    func start(initialURLs: [URL], authenticated: Bool) async {
+        guard !Task.isCancelled else { return }
+        start()
+        if authenticated { await coordinator.reset(authenticated: true) }
+        guard !Task.isCancelled else { return }
+        for url in initialURLs { coordinator.receive(url) }
     }
 }
 

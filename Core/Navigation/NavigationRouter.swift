@@ -69,6 +69,8 @@ enum BackNavigationPolicy { case allowed, blocked }
         navigationController.interactivePopGestureRecognizer?.delegate = self
     }
     var routes: [Route] { navigationController.viewControllers.compactMap { metadata[ObjectIdentifier($0)]?.route } }
+    /// Includes native presentation/dismissal cleanup, not merely a queued request.
+    var hasAlertPresentation: Bool { alertPresentation != nil }
     var backBlocked: Bool {
         guard let top = navigationController.topViewController else { return false }
         return metadata[ObjectIdentifier(top)]?.policy == .blocked
@@ -115,10 +117,11 @@ enum BackNavigationPolicy { case allowed, blocked }
         }
         guard !presenter.isBeingPresented, !presenter.isBeingDismissed,
               let request = alerts.beginNext() else { return }
-        let presentation = AlertPresentation(request: request, presenter: presenter, root: root) { [weak self] result in
+        let presentation = AlertPresentation(request: request, presenter: presenter) { [weak self] result in
             guard let self else { return }
             self.alertPresentation = nil
             if let result { self.alerts.complete(id: request.id, action: result) }
+            else { self.alerts.cancel(id: request.id) }
             self.drain()
         }
         alertPresentation = presentation

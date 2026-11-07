@@ -4,6 +4,42 @@ import Testing
 
 @MainActor
 struct AppAlertQueueTests {
+    @Test func invalidActionsCannotOwnOrBlockTheQueue() {
+        let queue = AppAlertQueue()
+        queue.sceneIsActive = true
+        let invalidActions: [[AppAlertAction]] = [[], [.ok, .ok], [.retry, .retry], [.cancel, .cancel]]
+        for actions in invalidActions {
+            queue.enqueue(AppAlertRequest(key: "invalid", style: .swiftUI,
+                title: "Invalid", message: "Invalid configuration", actions: actions))
+        }
+        #expect(queue.pendingCount == 0)
+        #expect(queue.beginNext() == nil)
+        let valid = AppAlertRequest.demo(style: .uikit)
+        queue.enqueue(valid)
+        #expect(queue.beginNext() == valid)
+    }
+
+    @Test func cancelledPresentationReleasesOnlyItsOwnRequestWithoutAnAction() {
+        let queue = AppAlertQueue()
+        queue.sceneIsActive = true
+        let first = AppAlertRequest.demo(style: .swiftUI)
+        let next = AppAlertRequest.demo(style: .uikit)
+        var actions: [AppAlertAction] = []
+        queue.enqueue(first) { actions.append($0) }
+        queue.enqueue(next) { actions.append($0) }
+        #expect(queue.beginNext() == first)
+        queue.cancel(id: UUID())
+        #expect(queue.current == first)
+        queue.cancel(id: first.id)
+        #expect(actions.isEmpty)
+        #expect(queue.beginNext() == next)
+        queue.cancel(id: first.id)
+        queue.complete(id: first.id, action: .ok)
+        #expect(queue.current == next)
+        queue.complete(id: next.id, action: .ok)
+        #expect(actions == [.ok])
+    }
+
     @Test func inactiveSceneBuffersRequestsUntilActivated() {
         let queue = AppAlertQueue()
         let request = AppAlertRequest.demo(style: .uikit)

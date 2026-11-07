@@ -203,6 +203,27 @@ import XCTest
         alert.buttons[action].tap()
         XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
     }
+    private func instanceIdentity() -> String {
+        app.buttons["toggleDiagnostics"].tap()
+        let identity = app.staticTexts["instanceIdentity"]
+        XCTAssertTrue(identity.waitForExistence(timeout: 5))
+        let value = identity.label
+        app.buttons["toggleDiagnostics"].tap()
+        return value
+    }
+    private func deliverToExistingApplication(_ link: String) {
+        // XCUIApplication.open launches again. System dispatch delivers to the existing scene.
+        XCUIDevice.shared.system.open(URL(string: link)!)
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+    }
+    private func assertLoginRequests(_ count: Int, file: StaticString = #filePath, line: UInt = #line) {
+        let label = app.staticTexts["loginCount"]
+        for _ in 0..<6 {
+            if label.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertEqual(label.label, "Login requests: \(count)", file: file, line: line)
+    }
     func testBothNativeAlertStylesFromSwiftUIAndXIB() {
         launch(["--authenticated"])
         XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
@@ -235,8 +256,10 @@ import XCTest
     func testGlobalAlertOverProtectedPhonePreservesItsBackPolicy() {
         launch(["--link", "NEW-USER"])
         assertPhoneProtected()
-        app.open(URL(string: "credentialdemo://unsupported")!)
+        let identity = instanceIdentity()
+        deliverToExistingApplication("credentialdemo://unsupported")
         acknowledgeAlert("Unsupported Link")
+        XCTAssertEqual(instanceIdentity(), identity)
         assertPhoneProtected()
         app.buttons["skipPhone"].tap()
         XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
@@ -244,25 +267,77 @@ import XCTest
     func testAuthenticatedDeepLinkErrorIsGlobalAndCancelPreservesStack() {
         launch(["--authenticated"])
         XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        let identity = instanceIdentity()
         findAndTap("openDetails")
         XCTAssertTrue(app.navigationBars["Credential Details"].waitForExistence(timeout: 5))
-        // OS delivery activates the existing application; no screen-specific presenter is needed.
-        app.open(URL(string: "credentialdemo://redeem?code=INVALID")!)
+        deliverToExistingApplication("credentialdemo://redeem?code=INVALID")
         acknowledgeAlert("Unable to Redeem", action: "Cancel")
+        XCTAssertEqual(instanceIdentity(), identity)
         XCTAssertTrue(app.navigationBars["Credential Details"].exists)
         XCTAssertEqual(app.staticTexts["credentialCount"].label, "Credentials: 1")
     }
     func testBackgroundDeepLinkErrorAppearsAfterForegroundActivation() {
         launch(["--authenticated"])
         XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        let identity = instanceIdentity()
         findAndTap("presentUIKit")
         XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
         XCUIDevice.shared.press(.home)
-        app.open(URL(string: "credentialdemo://redeem?code=NETWORK-FAIL")!)
+        let background = NSPredicate(format: "state == %d OR state == %d",
+            XCUIApplication.State.runningBackground.rawValue,
+            XCUIApplication.State.runningBackgroundSuspended.rawValue)
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: background, object: app)], timeout: 5), .completed)
+        deliverToExistingApplication("credentialdemo://redeem?code=NETWORK-FAIL")
         acknowledgeAlert("Unable to Redeem", action: "Retry")
         XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
         findAndTap("dismissUIKitModal")
+        XCTAssertEqual(instanceIdentity(), identity)
         XCTAssertTrue(app.staticTexts["Recovered Library"].waitForExistence(timeout: 5))
+    }
+    func testColdURLCreatesAccountAndPushesProtectedPhone() {
+        app.terminate()
+        app.launchArguments = []
+        app.open(URL(string: "credentialdemo://redeem?code=NEW-USER")!)
+        assertPhoneProtected()
+        app.buttons["skipPhone"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Welcome Library"].exists)
+    }
+    func testColdURLWaitsForAuthenticatedSetupBeforeRedemption() {
+        app.terminate()
+        app.launchArguments = ["--authenticated"]
+        app.open(URL(string: "credentialdemo://redeem?code=ADD-CRED")!)
+        XCTAssertTrue(app.staticTexts["Premium Library"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["credentialCount"].label, "Credentials: 2")
+        assertLoginRequests(0)
+        XCTAssertFalse(app.buttons["skipPhone"].exists)
+    }
+    func testRepeatedAndQueuedOSLinksKeepTheOriginalPhoneFlow() {
+        launch(["--link", "NEW-USER"])
+        assertPhoneProtected()
+        let identity = instanceIdentity()
+        deliverToExistingApplication("credentialdemo://redeem?code=NEW-USER")
+        deliverToExistingApplication("credentialdemo://redeem?code=ADD-CRED")
+        XCTAssertEqual(instanceIdentity(), identity)
+        assertPhoneProtected()
+        app.buttons["skipPhone"].tap()
+        XCTAssertTrue(app.staticTexts["Premium Library"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["credentialCount"].label, "Credentials: 2")
+        assertLoginRequests(1)
+    }
+    func testIncomingLinkQueuesAboveAnAlertAndAllowsPresentingAgain() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        let identity = instanceIdentity()
+        findAndTap("showSwiftUIAlert")
+        XCTAssertTrue(app.alerts["SwiftUI Alert"].waitForExistence(timeout: 5))
+        deliverToExistingApplication("credentialdemo://unsupported")
+        acknowledgeAlert("SwiftUI Alert")
+        acknowledgeAlert("Unsupported Link")
+        XCTAssertEqual(instanceIdentity(), identity)
+        findAndTap("showUIKitAlert")
+        acknowledgeAlert("UIKit Alert")
+        XCTAssertTrue(app.navigationBars["Home"].exists)
     }
     func testA_NewUserSkip() {
         launch(["--link", "NEW-USER"])

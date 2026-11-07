@@ -10,8 +10,15 @@ import UIKit
 @MainActor final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var composition: AppComposition?
+    private var startupTask: Task<Void, Never>?
+    private var starting = false
+    private var startupURLs: [URL] = []
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene else { return }
+        startupTask?.cancel()
+        self.composition?.coordinator.stop()
+        starting = true
+        startupURLs.removeAll()
         let composition = AppComposition()
         self.composition = composition
         let window = UIWindow(windowScene: scene)
@@ -20,18 +27,25 @@ import UIKit
         composition.start()
         window.makeKeyAndVisible()
         let urls = connectionOptions.urlContexts.map(\.url) + connectionOptions.userActivities.compactMap(\.webpageURL)
-        // OS entry points all converge on AppCoordinator.receive -> parser -> processor.
-        for url in urls { composition.coordinator.receive(url) }
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("--authenticated") {
-            Task { @MainActor [weak composition] in
-                guard let composition else { return }
-                await composition.coordinator.reset(authenticated: true)
-                self.deliverLaunchLink(arguments, coordinator: composition.coordinator)
-            }
-        } else { deliverLaunchLink(arguments, coordinator: composition.coordinator) }
+        let authenticated = arguments.contains("--authenticated")
+        #else
+        let authenticated = false
         #endif
+        startupTask = Task { @MainActor [weak self, weak composition] in
+            guard let composition else { return }
+            await composition.start(initialURLs: urls, authenticated: authenticated)
+            guard !Task.isCancelled, let self, self.composition === composition else { return }
+            self.starting = false
+            self.startupTask = nil
+            let waiting = self.startupURLs
+            self.startupURLs.removeAll()
+            for url in waiting { composition.coordinator.receive(url) }
+            #if DEBUG
+            self.deliverLaunchLink(arguments, coordinator: composition.coordinator)
+            #endif
+        }
     }
     #if DEBUG
     private func deliverLaunchLink(_ arguments: [String], coordinator: AppCoordinator) {
@@ -43,15 +57,22 @@ import UIKit
     func sceneDidBecomeActive(_ scene: UIScene) { composition?.router.setSceneActive(true) }
     func sceneWillResignActive(_ scene: UIScene) { composition?.router.setSceneActive(false) }
     func sceneDidDisconnect(_ scene: UIScene) {
+        startupTask?.cancel(); startupTask = nil
+        starting = false; startupURLs.removeAll()
         composition?.coordinator.stop()
         composition = nil; window = nil
     }
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        for context in URLContexts { composition?.coordinator.receive(context.url) }
+        for context in URLContexts { receive(context.url) }
     }
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         if userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL {
-            composition?.coordinator.receive(url)
+            receive(url)
         }
+    }
+    private func receive(_ url: URL) {
+        // Covers URL/Universal Link callbacks that arrive while cold session setup awaits.
+        if starting { startupURLs.append(url) }
+        else { composition?.coordinator.receive(url) }
     }
 }

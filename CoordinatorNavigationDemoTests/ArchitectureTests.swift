@@ -305,3 +305,244 @@ import UIKit
         #expect(router.routes == [.welcome])
     }
 }
+
+@MainActor struct ColdURLStartupTests {
+    @Test func authenticatedSetupCompletesBeforeColdURLIsRedeemed() async throws {
+        let composition = AppComposition(backend: MockBackend(delay: .zero))
+        let link = try #require(URL(string: "credentialdemo://redeem?code=ADD-CRED"))
+        await composition.start(initialURLs: [link], authenticated: true)
+        await composition.coordinator.waitForOperation()
+        #expect(composition.coordinator.session.credentials.count == 2)
+        #expect(composition.coordinator.session.permissions.contains("premium"))
+        #expect(composition.coordinator.demo.loginCount == 0)
+        #expect(composition.coordinator.onboarding == nil)
+        #expect(composition.router.routes == [.home])
+        composition.coordinator.stop()
+    }
+
+    @Test func unauthenticatedColdURLPushesPhoneAboveRedeem() async throws {
+        let composition = AppComposition(backend: MockBackend(delay: .zero))
+        let link = try #require(URL(string: "credentialdemo://redeem?code=NEW-USER"))
+        await composition.start(initialURLs: [link], authenticated: false)
+        await composition.coordinator.waitForOperation()
+        #expect(composition.router.routes == [.welcome, .redeem, .phone])
+        #expect(composition.navigationController.topViewController is AssociatePhoneViewController)
+        #expect(composition.router.backBlocked)
+        composition.coordinator.stop()
+    }
+}
+
+/// These tests need the host app's real scene; none use a detached router or RouterSpy.
+@Suite(.serialized) @MainActor struct NativeAlertLifecycleTests {
+    @Test(arguments: [AppAlertStyle.uikit, .swiftUI])
+    func alertCancellationKeepsPhoneProtectedAndSkipStillInstallsHome(style: AppAlertStyle) async throws {
+        try await withAlertWindow { harness in
+            let composition = harness.composition
+            let link = try #require(URL(string: "credentialdemo://redeem?code=NEW-USER"))
+            await composition.start(initialURLs: [link], authenticated: false)
+            await composition.coordinator.waitForOperation()
+            try await waitForAlertCondition { composition.router.routes.last == .phone &&
+                composition.navigationController.topViewController?.viewIfLoaded?.window != nil }
+            let phone = try #require(composition.navigationController.topViewController)
+            composition.router.setSceneActive(true)
+            composition.router.showAlert(.demo(style: style))
+            try await waitForAlertCondition { nativeAlertIsVisible(in: composition) }
+            composition.router.cancelAlerts()
+            try await waitForAlertCondition { !composition.router.hasAlertPresentation && AlertPresentation.visibleController(from: composition.rootViewController) === phone }
+            composition.router.pop()
+            #expect(composition.navigationController.topViewController === phone)
+            #expect(composition.router.backBlocked)
+            composition.coordinator.onboarding?.skip()
+            try await waitForAlertCondition { composition.router.routes == [.home] }
+            #expect(!composition.router.backBlocked)
+        }
+    }
+
+    @Test func swiftUIAlertDoesNotAddChildrenToTheUnderlyingHostingController() async throws {
+        try await withAlertWindow { harness in
+            let composition = harness.composition
+            let content = try #require(composition.navigationController.topViewController)
+            let originalChildren = content.children
+            composition.router.setSceneActive(true)
+            composition.router.showAlert(.demo(style: .swiftUI))
+            try await waitForAlertCondition { nativeAlertIsVisible(in: composition) }
+            #expect(content.children == originalChildren)
+            composition.router.cancelAlerts()
+            try await waitForAlertCondition { !composition.router.hasAlertPresentation && AlertPresentation.visibleController(from: composition.rootViewController) === content }
+            #expect(content.children == originalChildren)
+        }
+    }
+
+    @Test(arguments: [AppAlertStyle.uikit, .swiftUI])
+    func cancellationReleasesQueuedNavigationWithoutInvokingTheAction(style: AppAlertStyle) async throws {
+        try await withAlertWindow { harness in
+            let composition = harness.composition
+            var actionCount = 0
+            composition.router.setSceneActive(true)
+            composition.router.showAlert(.demo(style: style)) { _ in actionCount += 1 }
+            try await waitForAlertCondition { nativeAlertIsVisible(in: composition) }
+            let next = UIViewController()
+            composition.router.push(next, route: .secondary, policy: .allowed)
+            #expect(composition.router.routes == [.welcome])
+            composition.router.cancelAlerts()
+            try await waitForAlertCondition { composition.router.routes == [.welcome, .secondary] &&
+                composition.navigationController.transitionCoordinator == nil }
+            #expect(composition.navigationController.topViewController === next)
+            #expect(actionCount == 0)
+            #expect(AlertPresentation.visibleController(from: composition.rootViewController) === next)
+        }
+    }
+
+    @Test(arguments: [AppAlertStyle.uikit, .swiftUI])
+    func cancellingAlertPreservesTheExactFeatureModal(style: AppAlertStyle) async throws {
+        try await withAlertWindow { harness in
+            let composition = harness.composition
+            let modal = UIViewController()
+            modal.view.backgroundColor = .systemBackground
+            modal.modalPresentationStyle = .fullScreen
+            composition.router.present(modal, route: .uikitFullScreen)
+            try await waitForAlertCondition { modal.viewIfLoaded?.window != nil && !modal.isBeingPresented }
+            composition.router.setSceneActive(true)
+            composition.router.showAlert(.demo(style: style))
+            try await waitForAlertCondition { nativeAlertIsVisible(in: composition) }
+            composition.router.cancelAlerts()
+            try await waitForAlertCondition { !composition.router.hasAlertPresentation && AlertPresentation.visibleController(from: composition.rootViewController) === modal }
+            #expect(modal.presentingViewController != nil)
+            #expect(composition.router.presentedRoute == .uikitFullScreen)
+            #expect(composition.router.routes == [.welcome])
+        }
+    }
+
+    @Test func inactiveBusinessFailureWaitsAboveTheOriginalModalAndResetRemovesIt() async throws {
+        try await withAlertWindow { harness in
+            let composition = harness.composition
+            await composition.start(initialURLs: [], authenticated: true)
+            let originalSession = composition.coordinator.session.session
+            composition.coordinator.home?.presentUIKit()
+            try await waitForAlertCondition { composition.router.presentedRoute == .uikitFullScreen &&
+                AlertPresentation.visibleController(from: composition.rootViewController) is NavigationLabViewController }
+            let modal = AlertPresentation.visibleController(from: composition.rootViewController)
+            composition.router.setSceneActive(false)
+            composition.coordinator.submit(code: "NETWORK-FAIL")
+            await composition.coordinator.waitForOperation()
+            #expect(composition.coordinator.processor.active != nil)
+            #expect(AlertPresentation.visibleController(from: composition.rootViewController) === modal)
+            #expect(composition.coordinator.session.session == originalSession)
+            composition.router.setSceneActive(true)
+            try await waitForAlertCondition { nativeAlertIsVisible(in: composition) }
+            #expect(modal.presentingViewController != nil)
+            await composition.coordinator.reset(authenticated: false)
+            try await waitForAlertCondition { composition.router.routes == [.welcome] && composition.router.presentedRoute == nil }
+            #expect(!composition.coordinator.session.isAuthenticated)
+            #expect(composition.coordinator.processor.active == nil)
+            #expect(!(AlertPresentation.visibleController(from: composition.rootViewController) is UIAlertController))
+        }
+    }
+
+    @Test(arguments: [AppAlertStyle.uikit, .swiftUI])
+    func cancellingBeforePresentationCompletesStillAllowsTheNextScreen(style: AppAlertStyle) async throws {
+        try await withAlertWindow { harness in
+            let router = harness.composition.router
+            router.setSceneActive(true)
+            router.showAlert(.demo(style: style))
+            router.cancelAlerts() // Before UIKit completes or SwiftUI's deferred binding starts.
+            router.push(UIViewController(), route: .secondary, policy: .allowed)
+            try await waitForAlertCondition { router.routes == [.welcome, .secondary] }
+        }
+    }
+}
+
+@MainActor private final class AlertWindowHarness {
+    let composition = AppComposition(backend: MockBackend(delay: .zero))
+    private let window: UIWindow
+    private let appearance = AlertWindowAppearanceProbe()
+    private weak var previousWindow: UIWindow?
+
+    private init() throws {
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        previousWindow = scene.windows.first(where: \.isKeyWindow)
+        window = UIWindow(windowScene: scene)
+        window.rootViewController = composition.rootViewController
+        // Match SceneDelegate: install content BEFORE the window begins appearing.
+        composition.start()
+        let root = composition.rootViewController
+        root.addChild(appearance)
+        root.view.addSubview(appearance.view)
+        appearance.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+        appearance.view.isUserInteractionEnabled = false
+        appearance.didMove(toParent: root)
+        window.makeKeyAndVisible()
+    }
+    static func make() async throws -> AlertWindowHarness {
+        let harness = try AlertWindowHarness()
+        do {
+            try await waitForAlertCondition { harness.appearance.didAppear }
+            harness.appearance.willMove(toParent: nil)
+            harness.appearance.view.removeFromSuperview()
+            harness.appearance.removeFromParent()
+            return harness
+        } catch {
+            await harness.close()
+            throw error
+        }
+    }
+    func close() async {
+        composition.coordinator.stop()
+        // Do not destroy a window while the router still owns native alert cleanup.
+        try? await waitForAlertCondition { !self.composition.router.hasAlertPresentation &&
+            self.composition.navigationController.transitionCoordinator == nil }
+        if composition.navigationController.presentedViewController != nil {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                composition.navigationController.dismiss(animated: false) { continuation.resume() }
+            }
+        }
+        previousWindow?.makeKeyAndVisible()
+        // Let UIKit return from key-window/appearance callbacks before releasing the root.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+        window.isHidden = true
+        window.rootViewController = nil
+    }
+}
+
+@MainActor private final class AlertWindowAppearanceProbe: UIViewController {
+    private(set) var didAppear = false
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        didAppear = true
+    }
+}
+
+@MainActor private func withAlertWindow(_ body: @MainActor (AlertWindowHarness) async throws -> Void) async throws {
+    let harness = try await AlertWindowHarness.make()
+    do {
+        try await body(harness)
+        await harness.close()
+    } catch {
+        await harness.close()
+        throw error
+    }
+}
+
+@MainActor private func waitForAlertCondition(
+    _ condition: @MainActor () -> Bool,
+    fileID: String = #fileID, filePath: String = #filePath,
+    line: Int = #line, column: Int = #column
+) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: .seconds(5))
+    while !condition(), clock.now < deadline {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    try #require(condition(), "The native presentation/transition must complete before continuing",
+        sourceLocation: SourceLocation(fileID: fileID, filePath: filePath, line: line, column: column))
+}
+
+@MainActor private func nativeAlertIsVisible(in composition: AppComposition) -> Bool {
+    let visible = AlertPresentation.visibleController(from: composition.rootViewController)
+    // The transparent SwiftUI host alone is insufficient: wait for the native alert.
+    return visible is UIAlertController && visible.viewIfLoaded?.window != nil &&
+        visible.presentingViewController != nil &&
+        !visible.isBeingPresented && !visible.isBeingDismissed
+}

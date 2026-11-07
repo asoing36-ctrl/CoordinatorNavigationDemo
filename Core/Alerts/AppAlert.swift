@@ -5,7 +5,7 @@ enum AppAlertStyle: String, CaseIterable, Sendable {
     case swiftUI
 }
 
-enum AppAlertAction: String, Sendable {
+enum AppAlertAction: String, Hashable, Sendable {
     case ok
     case retry
     case cancel
@@ -83,6 +83,8 @@ final class AppAlertQueue {
         _ request: AppAlertRequest,
         completion: @escaping @MainActor (AppAlertAction) -> Void = { _ in }
     ) {
+        guard !request.actions.isEmpty,
+              Set(request.actions).count == request.actions.count else { return }
         guard active?.request.key != request.key,
               !pending.contains(where: { $0.request.key == request.key }) else { return }
         pending.append(Entry(request: request, completion: completion))
@@ -101,6 +103,12 @@ final class AppAlertQueue {
               entry.request.actions.contains(action) else { return }
         active = nil
         entry.completion(action)
+    }
+
+    /// Presentation cancellation/rejection is not a user action. Preserve the next request.
+    func cancel(id: UUID) {
+        guard active?.request.id == id else { return }
+        active = nil
     }
 
     func cancelAll() {

@@ -1,6 +1,9 @@
 import SwiftUI
 
 @MainActor final class DemoModel: ObservableObject {
+    #if DEBUG
+    let instanceID = UUID().uuidString
+    #endif
     @Published var code = "NEW-USER"
     @Published var status = "Ready"
     @Published var alertStyle: AppAlertStyle = .uikit
@@ -85,6 +88,9 @@ struct DiagnosticsView: View {
             Button(expanded ? "Hide diagnostics" : "Diagnostics") { expanded.toggle() }
                 .font(.caption.bold()).accessibilityIdentifier("toggleDiagnostics")
             if expanded {
+                #if DEBUG
+                Text("Instance: \(model.instanceID)").accessibilityIdentifier("instanceIdentity")
+                #endif
                 Text("Flow: \(model.flow) • \(model.authentication)")
                 Text("Current: \(model.presentedScreen ?? model.routes.last ?? "none")")
                 Text("Stack: " + model.routes.joined(separator: " → ")).accessibilityIdentifier("overlayStack")
