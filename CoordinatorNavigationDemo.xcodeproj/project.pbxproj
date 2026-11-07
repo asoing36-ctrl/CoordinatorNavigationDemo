@@ -34,6 +34,9 @@
 		E963DCF9F828680AD13C14FA /* Features/Redeem/RedeemCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49562215DF9CE8C33F45F8FC /* Features/Redeem/RedeemCoordinator.swift */; };
 		E9E008FE5CE261E6943F7952 /* Domain/UseCases/RedeemCredentialUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E2DF54C58B4016710D71A2 /* Domain/UseCases/RedeemCredentialUseCase.swift */; };
 		EB846FAEFA0299272B3DD2D0 /* Core/Session/SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3B041178D819BB7614C47B /* Core/Session/SessionStore.swift */; };
+		188CEB08B6CA28E34B52F975 /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */; };
+		1526DCC1EB662F2F612B3C6D /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB5217B35F655254707CD54 /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift */; };
+		DCB753F55AAE26CEC54768E1 /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41BED8167AE43BCDC763766F /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,6 +89,9 @@
 		E6F23675A8293D6AEE3335D9 /* Core/DependencyInjection/AppComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DependencyInjection/AppComposition.swift; sourceTree = "<group>"; };
 		E82D568A9C9AFE85DC89F7B1 /* Features/Home/HomeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Home/HomeCoordinator.swift; sourceTree = "<group>"; };
 		E8E2DF54C58B4016710D71A2 /* Domain/UseCases/RedeemCredentialUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/UseCases/RedeemCredentialUseCase.swift; sourceTree = "<group>"; };
+		19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/RouterLifecycleTests.swift; sourceTree = "<group>"; };
+		1AB5217B35F655254707CD54 /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift; sourceTree = "<group>"; };
+		41BED8167AE43BCDC763766F /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -116,6 +122,9 @@
 		584FF3284433B1276B3A941A /* CoordinatorNavigationDemoTests */ = {
 			isa = PBXGroup;
 			children = (
+				19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */,
+				1AB5217B35F655254707CD54 /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift */,
+				41BED8167AE43BCDC763766F /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift */,
 				AD523167FEE6E7332A60A79E /* CoordinatorNavigationDemoTests/IntentProcessorTests.swift */,
 				C179048CC08DC17A212367D5 /* CoordinatorNavigationDemoTests/AppAlertQueueTests.swift */,
 				1C7CB7FE8F86B3037AB2D532 /* CoordinatorNavigationDemoTests/ArchitectureTests.swift */,
@@ -374,6 +383,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				188CEB08B6CA28E34B52F975 /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift in Sources */,
+				1526DCC1EB662F2F612B3C6D /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift in Sources */,
+				DCB753F55AAE26CEC54768E1 /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift in Sources */,
 				2359C62A3A1BEABB0AE5E697 /* CoordinatorNavigationDemoTests/IntentProcessorTests.swift in Sources */,
 				CE9AC5508205AD6FA2E77920 /* CoordinatorNavigationDemoTests/AppAlertQueueTests.swift in Sources */,
 				4414FD2BA78D99D906DEF63C /* CoordinatorNavigationDemoTests/ArchitectureTests.swift in Sources */,

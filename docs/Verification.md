@@ -1,8 +1,46 @@
 # Verification record
 
-## Current result — user Simulator run passed (2026-11-07, 16:59)
+## Current navigation hardening — user Simulator runs passed (2026-11-07, 20:50 / 20:52)
 
-The user built and ran the complete current suite in Xcode. The agent inspected the completed bundle without running builds/tests:
+The user prioritized the reusable navigation layer for a large production project. This revision adds guarded controller ownership/reuse and replacement validation, typed rejection reporting, an iterative non-reentrant queue, duplicate-push coalescing, independent stack/modal completion gates, scene eligibility, hidden-stack updates and completed-transition Back reconciliation. Coordinator changes are limited to clearing pending navigation at reset/stop; backend/account behavior is unchanged.
+
+The user's complete rerun passed **71 native unit declarations + 26 UI methods = 97 declarations**, including **22 RouterLifecycleTests** and the real SwiftUI/XIB edge-swipe UI case. Expanded parameter runs: **111 passed**, with no failures or skips. The older 74-pass result below belongs to commit 5bb132a.
+
+The user built and ran the tests in Xcode. The agent inspected completed result bundles without initiating builds or tests. Independent source review corrected a test-probe lifecycle issue and clarified inactive replacement when modal cleanup is required. See [NavigationContract.md](NavigationContract.md) and [the scoped plan](plans/navigation-reliability.md) for behavior and release gates.
+
+| User-run bundle | Actual result |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.07_20-50-55-+0200.xcresult` | Targeted router suite: **22/22 declarations passed**, **24 expanded runs passed**, no failures/skips |
+| `Test-CoordinatorNavigationDemo-2026.11.07_20-52-23-+0200.xcresult` | Full suite: **71/71 unit + 26/26 UI passed**, **111 expanded runs passed**, no failures/skips |
+| Recorded runtime warnings | **0** in both bundles |
+| Previously failing root-replacement and protected-Back tests | Both passed in the full rerun |
+| Immediate push after new/reused visible roots | Both parameter cases passed |
+| SwiftUI/XIB swipe Back after protected flow completion | Passed |
+
+Both bundles are under `~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`. Destination: iPhone 17 / iOS 27.0 Simulator, arm64. No production source changed after these results were inspected; only documentation was updated.
+
+Console inspection found zero matching unsupported-hosting, publication-during-update, unbalanced-appearance or unfinished-navigation-transition diagnostics. The UI console also has zero locked-focus/handler diagnostics. The native unit console still contains **8** `Locked environment ... was deallocated` entries and **232** `cannot add handler to 0 from 0 - dropping` entries. They are not recorded runtime warnings; their cause remains unestablished. No leak, harmlessness or production-defect conclusion is inferred from these messages.
+
+This validates the patched navigation behavior on the stated Simulator destination. Cross-OS/device testing, real gesture repetition, long-session profiling and application-specific backlog/route policies remain required before production sign-off. No separate iOS 17 runtime/device run, Release build or supplemental macOS package rerun is claimed for this revision.
+
+An independent [strict navigation review](audits/navigation-strict-review-2026-11-07.md) subsequently found no confirmed correctness blocker in the supported integration contract. It identified an unproved sheet-cancellation interaction and additional coverage limits. This read-only source review did not execute anything or add test coverage; the original audit's remaining tasks are tracked in [implementation-status.md](audits/implementation-status.md).
+
+### Earlier failing router run and sequencing follow-up (2026-11-07, 19:29)
+
+Inspected `Test-CoordinatorNavigationDemo-2026.11.07_19-29-58-+0200.xcresult` in the same DerivedData directory: **19/21 declarations passed, 2 failed**; expanded argument cases: **20 passed, 2 failed**. Destination: iPhone 17 / iOS 27.0 Simulator. No recorded runtime warnings. This run selected only RouterLifecycleTests; the remaining unit/UI suites were not executed in this bundle.
+
+- `inactiveRootReplacementDropsObsoleteWaitingRoutes()` timed out at original line 60, after an immediate push following root replacement.
+- `protectedBackIsBlockedAndReplacementRestoresOrdinaryBack()` timed out at original line 261, after root replacement and the following push. Initial protected Back assertions completed successfully.
+
+The generic timeout did not record the actual routes or native transition state. The exported console has repeated UIKit `cannot add handler to 0 from 0 - dropping` diagnostics, without a causal explanation or an unbalanced-navigation message. No console-diagnostic cause is inferred.
+
+Source investigation identified a sequencing gap: visible nonanimated replacement did not acquire the navigation transition gate, and deferring the scheduled didShow drain did not prevent a caller from immediately starting a new push. The follow-up tracks visible nonanimated display completion and blocks every queue entry point until the callback/replacement turn returns. Reusing the same top does not depend on receiving another didShow. Added a parameterized native regression (new root / reused root) and safe timeout diagnostics containing routes, transition presence, Back policy and rejection reasons. Existing timeout budgets and assertions were not relaxed.
+
+**Follow-up resolution:** the user's targeted and full reruns above passed both original failing tests and both new regression parameter cases. The agent did not run builds/tests or relax the existing timeout budgets/assertions.
+
+## Earlier alert baseline — user Simulator run passed (2026-11-07, 16:59)
+
+The user built and ran the complete suite for baseline commit 5bb132a in Xcode. The agent inspected the completed bundle without running builds/tests:
 
 `Test-CoordinatorNavigationDemo-2026.11.07_16-59-02-+0200.xcresult`
 

@@ -1,5 +1,7 @@
 # Architecture audit — alert-aware revision
 
+> **Historical audit snapshot.** References to "current", line numbers, test counts and open findings below describe the audit baseline before subsequent alert/navigation hardening. They are not a current defect list. See the [navigation contract](../NavigationContract.md), [latest verified results](../Verification.md), [task-level implementation status](implementation-status.md) and [strict navigation review](navigation-strict-review-2026-11-07.md). Original evidence below remains unchanged.
+
 Audit date: 2026-11-07, alert-aware revision. Baseline: the current working tree, including the native UIKit/SwiftUI alert extension and earlier local changes, not only published commit `c2209c9c6fcc692947f94a6b62029553a6ae4f0a`.
 
 This is an analysis-only re-audit. Production code, tests, XIBs, configuration and existing non-audit documentation are unchanged. The five earlier reports were read and preserved byte-for-byte under [history/pre-alerts-2026-11-07](history/pre-alerts-2026-11-07/architecture-audit.md). Current reports supersede that snapshot. README, GlobalAlerts, verification history, current alert source, router, scene/app coordinators, UI wiring, XIBs and tests were re-inspected. Source references below use current line numbers. Prior architecture conclusions remain unless explicitly revised.

@@ -40,6 +40,22 @@ import XCTest
         start.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)))
         XCTAssertTrue(app.buttons["skipPhone"].exists)
     }
+    func testSwipeBackWorksForSwiftUIAndXIBAfterProtectedFlowCompletes() {
+        launch(["--link", "NEW-USER"])
+        assertPhoneProtected()
+        app.buttons["skipPhone"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        for (button, title) in [("openSecondary", "Secondary"), ("openUIKit", "UIKit Lab")] {
+            findAndTap(button)
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.45))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45))
+            start.press(forDuration: 0.1, thenDragTo: end)
+            XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.navigationBars[title].exists)
+        }
+        XCTAssertFalse(app.buttons["skipPhone"].exists)
+    }
     func testDefaultLaunchAndOnscreenRedeemNavigation() {
         // No launch shortcuts: exercise the same entry point and controls as a person.
         launch()

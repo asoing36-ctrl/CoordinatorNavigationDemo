@@ -1,5 +1,7 @@
 # Test coverage and execution matrix — including alerts
 
+> **Historical coverage snapshot.** References to "current", source lines, test counts, failures and missing coverage below describe the audit baseline before subsequent alert/navigation hardening. Use [Verification.md](../Verification.md) for latest execution evidence, the [implementation status](implementation-status.md) for added work, and the [strict navigation review](navigation-strict-review-2026-11-07.md) for remaining validation gaps. Original evidence below remains unchanged.
+
 Audit date: 2026-11-07. Baseline is the current working tree, including the pre-audit local sheet-identifier fix. No test or production file was changed during this audit.
 
 ## Inventory and execution status — current alert-aware baseline

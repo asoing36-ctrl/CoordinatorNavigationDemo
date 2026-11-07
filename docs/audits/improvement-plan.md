@@ -1,5 +1,7 @@
 # Incremental architecture improvement plan — alert-aware revision
 
+> **Historical plan snapshot.** Baseline findings, test counts and unchecked tasks below describe the original proposal; these checkboxes are not a current implementation backlog. See the [task-level implementation status](implementation-status.md), [strict navigation review](navigation-strict-review-2026-11-07.md), [navigation contract](../NavigationContract.md) and [latest verified results](../Verification.md). Original task evidence and checkboxes below remain unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement an approved phase task-by-task; use superpowers:subagent-driven-development only if that execution method is chosen. Steps use checkbox (`- [ ]`) syntax. This document is a proposal, not authorization to implement during the audit.
 
 **Goal:** Preserve all required mixed-UI/navigation/business behavior while reducing duplicated bookkeeping and improving lifecycle/error reliability and test evidence.

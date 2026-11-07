@@ -5,6 +5,11 @@ enum Route: String, Hashable {
 }
 enum PresentationRoute: String { case credentialSheet, uikitFullScreen }
 enum BackNavigationPolicy { case allowed, blocked }
+/// Safe integration diagnostics; contains no controllers, URLs, codes or screen data.
+enum NavigationRejection: String, Equatable, Sendable {
+    case invalidStack, unsupportedStackController, controllerInUse
+    case presenterUnavailable, alreadyPresenting, routeNotFound
+}
 @MainActor struct Screen {
     let controller: UIViewController
     let route: Route
@@ -26,6 +31,8 @@ enum BackNavigationPolicy { case allowed, blocked }
     func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void)
     func setSceneActive(_ active: Bool)
     func cancelAlerts()
+    /// Invalidates waiting commands without interrupting UIKit's current transition.
+    func cancelPendingNavigation()
 }
 
 /// Also catches direct UIKit pop calls and navigation bar Back actions.
@@ -51,13 +58,24 @@ enum BackNavigationPolicy { case allowed, blocked }
     private var queue: [Operation] = []
     private let alerts = AppAlertQueue()
     private var alertPresentation: AlertPresentation?
-    private var transitioning = false
+    private var navigationTransitioning = false
+    private var presentationTransitioning = false
+    private var transitioning: Bool { navigationTransitioning || presentationTransitioning }
+    private var draining = false
+    private var notifyingObservers = false
+    private var navigationDrainPending = false
     private(set) var presentedRoute: PresentationRoute?
     private weak var presentedController: UIViewController?
     private weak var originalGestureDelegate: (any UIGestureRecognizerDelegate)?
     var onChange: (() -> Void)?
+    /// The composition root can record rejected commands or schedule recovery.
+    var onRejectedNavigation: (@MainActor (NavigationRejection) -> Void)?
     private enum Operation {
         case push(Screen), pop, popTo(Route), replace([Screen]), present(UIViewController, PresentationRoute), dismiss
+        var requiresActiveScene: Bool {
+            if case .replace = self { return false } // Root setup must work before first activation.
+            return true
+        }
     }
     init(navigationController: PolicyNavigationController) {
         self.navigationController = navigationController
@@ -71,6 +89,9 @@ enum BackNavigationPolicy { case allowed, blocked }
     var routes: [Route] { navigationController.viewControllers.compactMap { metadata[ObjectIdentifier($0)]?.route } }
     /// Includes native presentation/dismissal cleanup, not merely a queued request.
     var hasAlertPresentation: Bool { alertPresentation != nil }
+    private var attachedWindow: UIWindow? {
+        navigationController.viewIfLoaded?.window ?? navigationController.presentedViewController?.viewIfLoaded?.window
+    }
     var backBlocked: Bool {
         guard let top = navigationController.topViewController else { return false }
         return metadata[ObjectIdentifier(top)]?.policy == .blocked
@@ -81,8 +102,18 @@ enum BackNavigationPolicy { case allowed, blocked }
     func pop() { guard !backBlocked else { return }; enqueue(.pop) }
     func popTo(_ route: Route) { guard !backBlocked else { return }; enqueue(.popTo(route)) }
     func replaceStack(_ screens: [Screen]) {
-        guard !screens.isEmpty else { return }
-        queue.removeAll() // Discard obsolete commands when explicitly ending/resetting a flow.
+        guard !screens.isEmpty,
+              Set(screens.map { ObjectIdentifier($0.controller) }).count == screens.count,
+              Set(screens.map(\.route)).count == screens.count,
+              screens.allSatisfy({ supportsStack($0.controller) }) else {
+            onRejectedNavigation?(.invalidStack)
+            return
+        }
+        guard screens.allSatisfy({ canEnterStack($0.controller, beforeQueuedDismissal: true) }) else {
+            onRejectedNavigation?(.controllerInUse)
+            return
+        }
+        cancelPendingNavigation() // Discard obsolete commands when explicitly ending/resetting a flow.
         cancelAlerts()
         if navigationController.presentedViewController != nil { queue.append(.dismiss) }
         enqueue(.replace(screens))
@@ -102,6 +133,22 @@ enum BackNavigationPolicy { case allowed, blocked }
     func cancelAlerts() {
         alerts.cancelAll()
         alertPresentation?.cancel()
+    }
+    func cancelPendingNavigation() { queue.removeAll() }
+    private func supportsStack(_ controller: UIViewController) -> Bool {
+        !(controller is UINavigationController) && !(controller is UITabBarController) && !(controller is UIAlertController)
+    }
+    private func isDetached(_ controller: UIViewController) -> Bool {
+        controller.parent == nil && controller.presentingViewController == nil &&
+            controller.viewIfLoaded?.window == nil && !controller.isBeingPresented && !controller.isBeingDismissed
+    }
+    private func canEnterStack(_ controller: UIViewController, beforeQueuedDismissal: Bool) -> Bool {
+        if navigationController.viewControllers.contains(where: { $0 === controller }) { return true }
+        if beforeQueuedDismissal {
+            if controller === presentedController { return true }
+            if transitioning, metadata[ObjectIdentifier(controller)] != nil { return true }
+        }
+        return isDetached(controller)
     }
     private func presentNextAlert() {
         guard alerts.sceneIsActive,
@@ -127,90 +174,155 @@ enum BackNavigationPolicy { case allowed, blocked }
         alertPresentation = presentation
         presentation.present()
     }
-    private func enqueue(_ operation: Operation) { queue.append(operation); drain() }
+    private func enqueue(_ operation: Operation) {
+        // Keep the first adjacent push, matching execution-time route deduplication.
+        // Do not coalesce across a pop/dismiss/replacement, which changes its meaning.
+        if case .push(let next) = operation, case .push(let waiting)? = queue.last,
+           next.route == waiting.route { return }
+        queue.append(operation)
+        drain()
+    }
     private func drain() {
-        guard !transitioning, alertPresentation == nil else { return }
-        guard !queue.isEmpty else { presentNextAlert(); return }
-        let operation = queue.removeFirst()
-        let animated = navigationController.viewIfLoaded?.window != nil || navigationController.presentedViewController?.viewIfLoaded?.window != nil
+        guard !draining, !notifyingObservers, !navigationDrainPending, !transitioning, alertPresentation == nil else { return }
+        draining = true
+        defer { draining = false }
+        var processed = 0
+        while !navigationDrainPending, !transitioning, alertPresentation == nil {
+            // Bound synchronous no-op/rejection batches without dropping accepted work.
+            if processed == 64 {
+                DispatchQueue.main.async { [weak self] in self?.drain() }
+                return
+            }
+            processed += 1
+            guard !queue.isEmpty else {
+                let before = alerts.pendingCount
+                presentNextAlert()
+                if alertPresentation == nil, alerts.pendingCount < before { continue }
+                return
+            }
+            if !alerts.sceneIsActive, attachedWindow != nil, queue[0].requiresActiveScene { return }
+            execute(queue.removeFirst())
+        }
+    }
+    private func execute(_ operation: Operation) {
+        let animatedStack = navigationController.viewIfLoaded?.window != nil && navigationController.presentedViewController == nil
         switch operation {
         case .push(let screen):
-            guard !routes.contains(screen.route) else { drain(); return }
+            guard supportsStack(screen.controller) else { onRejectedNavigation?(.unsupportedStackController); return }
+            guard !routes.contains(screen.route) else { return }
+            guard !navigationController.viewControllers.contains(where: { $0 === screen.controller }),
+                  isDetached(screen.controller) else { onRejectedNavigation?(.controllerInUse); return }
             metadata[ObjectIdentifier(screen.controller)] = screen
             screen.controller.navigationItem.hidesBackButton = screen.policy == .blocked
-            transitioning = animated
-            navigationController.pushViewController(screen.controller, animated: animated)
+            navigationTransitioning = animatedStack
+            navigationController.pushViewController(screen.controller, animated: animatedStack)
         case .pop:
-            guard !backBlocked, navigationController.viewControllers.count > 1 else { drain(); return }
-            transitioning = animated
-            _ = navigationController.popViewController(animated: animated)
+            guard !backBlocked, navigationController.viewControllers.count > 1 else { return }
+            navigationTransitioning = animatedStack
+            _ = navigationController.popViewController(animated: animatedStack)
         case .popTo(let route):
-            guard !backBlocked, let target = navigationController.viewControllers.first(where: { metadata[ObjectIdentifier($0)]?.route == route }), target !== navigationController.topViewController else { drain(); return }
-            transitioning = animated
-            _ = navigationController.popToViewController(target, animated: animated)
+            guard !backBlocked else { return }
+            guard let target = navigationController.viewControllers.first(where: { metadata[ObjectIdentifier($0)]?.route == route }) else {
+                onRejectedNavigation?(.routeNotFound)
+                return
+            }
+            guard target !== navigationController.topViewController else { return }
+            navigationTransitioning = animatedStack
+            _ = navigationController.popToViewController(target, animated: animatedStack)
         case .replace(let screens):
+            guard screens.allSatisfy({ canEnterStack($0.controller, beforeQueuedDismissal: false) }) else {
+                onRejectedNavigation?(.controllerInUse)
+                return
+            }
             for screen in screens { metadata[ObjectIdentifier(screen.controller)] = screen }
-            // Replacements are atomic, with no animation. They are flow completion, not Back.
+            // Nonanimated changes still have a UIKit display lifecycle. Do not
+            // let an immediately submitted push overtake the new visible root.
+            let visible = navigationController.viewIfLoaded?.window != nil && navigationController.presentedViewController == nil
+            navigationTransitioning = visible && navigationController.topViewController !== screens.last?.controller
             navigationController.setViewControllers(screens.map(\.controller), animated: false)
+            // Reusing the same top may not emit didShow, but still reserves this
+            // turn while UIKit updates the stack and navigation items.
+            if visible { deferNavigationDrain() }
         case .present(let controller, let route):
             // UIKit does not complete a presentation from a detached view controller.
-            guard navigationController.viewIfLoaded?.window != nil,
-                  navigationController.presentedViewController == nil else { drain(); return }
+            guard navigationController.presentedViewController == nil else { onRejectedNavigation?(.alreadyPresenting); return }
+            guard navigationController.viewIfLoaded?.window != nil else { onRejectedNavigation?(.presenterUnavailable); return }
+            guard isDetached(controller) else { onRejectedNavigation?(.controllerInUse); return }
             presentedController = controller
             presentedRoute = route
-            transitioning = true
-            navigationController.present(controller, animated: animated) { [weak self] in self?.complete() }
+            presentationTransitioning = true
+            navigationController.present(controller, animated: true) { [weak self] in self?.completePresentation() }
             controller.presentationController?.delegate = self
         case .dismiss:
-            guard navigationController.presentedViewController != nil else { drain(); return }
-            transitioning = true
-            navigationController.dismiss(animated: animated) { [weak self] in
+            guard navigationController.presentedViewController != nil else { return }
+            presentationTransitioning = true
+            navigationController.dismiss(animated: attachedWindow != nil) { [weak self] in
                 self?.presentedController = nil
                 self?.presentedRoute = nil
-                self?.complete()
+                self?.completePresentation()
             }
         }
         synchronize()
-        if !transitioning { drain() }
     }
     private func synchronize() {
-        let retained = Set(navigationController.viewControllers.map(ObjectIdentifier.init))
-        metadata = metadata.filter { retained.contains($0.key) }
-        navigationController.topViewController?.navigationItem.hidesBackButton = backBlocked
-        navigationController.interactivePopGestureRecognizer?.isEnabled = !backBlocked && navigationController.viewControllers.count > 1
+        // An interactive pop temporarily removes its source from viewControllers.
+        // UIKit may restore it on cancellation. Prune only the completed stack,
+        // and do not disable the gesture that is currently driving that transition.
+        if !transitioning {
+            let retained = Set(navigationController.viewControllers.map(ObjectIdentifier.init))
+            metadata = metadata.filter { retained.contains($0.key) }
+            navigationController.topViewController?.navigationItem.hidesBackButton = backBlocked
+            navigationController.interactivePopGestureRecognizer?.isEnabled = !backBlocked && navigationController.viewControllers.count > 1
+        }
+        let wasNotifying = notifyingObservers
+        notifyingObservers = true
+        defer { notifyingObservers = wasNotifying }
         onChange?()
     }
-    private func complete() { transitioning = false; synchronize(); drain() }
+    private func completePresentation() { presentationTransitioning = false; synchronize(); drain() }
+    private func deferNavigationDrain() {
+        guard !navigationDrainPending else { return }
+        navigationDrainPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.navigationDrainPending = false
+            self.drain()
+        }
+    }
     func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool) {
         // Track user-initiated transitions too, including an interactive pop that cancels.
-        if animated { transitioning = true }
+        if animated || (navigationController.viewIfLoaded?.window != nil && navigationController.presentedViewController == nil) {
+            navigationTransitioning = true
+        }
     }
     func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {
-        transitioning = false
+        navigationTransitioning = false
+        if navigationController.viewIfLoaded?.window != nil { deferNavigationDrain() }
         synchronize()
         // didShow confirms completion (including cancellation). Start the next command
-        // after UIKit has returned from its delegate callback. A nonnil transition
-        // coordinator at this point must not strand queued commands.
-        DispatchQueue.main.async { [weak self] in self?.drain() }
+        // after UIKit returns from its delegate callback, including commands
+        // submitted synchronously after setViewControllers returns. Detached
+        // stack construction remains synchronous and does not reserve a turn.
+        if !navigationDrainPending { DispatchQueue.main.async { [weak self] in self?.drain() } }
     }
     func presentationControllerWillDismiss(_ presentationController: UIPresentationController) {
         guard presentationController.presentedViewController === presentedController,
               let transition = presentationController.presentedViewController.transitionCoordinator else { return }
-        transitioning = true
+        presentationTransitioning = true
         let registered = transition.animate(alongsideTransition: nil) { [weak self] context in
             // A cancelled swipe leaves the same sheet onscreen and releases queued work.
-            if context.isCancelled { self?.complete() }
+            if context.isCancelled { self?.completePresentation() }
         }
-        if !registered { complete() }
+        if !registered { completePresentation() }
     }
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
         guard presentationController.presentedViewController === presentedController else { return }
         presentedController = nil
         presentedRoute = nil
-        complete()
+        completePresentation()
     }
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard !backBlocked, !transitioning, navigationController.viewControllers.count > 1 else { return false }
+        guard !backBlocked, !transitioning, !navigationDrainPending, navigationController.viewControllers.count > 1 else { return false }
         return originalGestureDelegate?.gestureRecognizerShouldBegin?(gestureRecognizer) ?? true
     }
 }

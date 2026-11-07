@@ -11,7 +11,7 @@ let package = Package(
             exclude: ["App", "Features", "Core/Navigation", "Core/DependencyInjection", "Core/Session", "Core/Alerts/AlertPresentation.swift", "CoordinatorNavigationDemoTests", "CoordinatorNavigationDemoUITests", "CoordinatorNavigationDemo.xcodeproj", "docs", "README.md"],
             sources: ["Domain", "Data", "Core/DeepLinks", "Core/Alerts/AppAlert.swift"]),
         .testTarget(name: "PortableCoreTests", dependencies: ["CoordinatorNavigationDemo"],
-            path: "CoordinatorNavigationDemoTests", exclude: ["ArchitectureTests.swift"],
+            path: "CoordinatorNavigationDemoTests", exclude: ["ArchitectureTests.swift", "RouterLifecycleTests.swift", "TestSupport"],
             sources: ["DomainTests.swift", "IntentProcessorTests.swift", "AppAlertQueueTests.swift"])
     ],
     swiftLanguageModes: [.v5]

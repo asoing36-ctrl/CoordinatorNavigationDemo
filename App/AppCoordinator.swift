@@ -162,6 +162,7 @@ import SwiftUI
     // half-reset state. Lifecycle stop invalidates its generation at every await.
     func reset(authenticated: Bool) async {
         guard !resetting, !stopped else { return }
+        router.cancelPendingNavigation()
         router.cancelAlerts()
         generation = UUID()
         let resetGeneration = generation
@@ -214,6 +215,7 @@ import SwiftUI
     }
     func stop() {
         stopped = true
+        router.cancelPendingNavigation()
         router.cancelAlerts()
         resetting = false; deferredURLs.removeAll()
         generation = UUID(); operation?.cancel(); resetTask?.cancel()

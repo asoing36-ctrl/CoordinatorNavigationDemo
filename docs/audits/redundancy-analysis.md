@@ -1,5 +1,7 @@
 # Redundancy and simplification analysis — including alerts
 
+> **Historical audit snapshot.** References to "current", line numbers, test counts and open findings below describe the audit baseline before subsequent alert/navigation hardening. They are not a current defect list. See the [navigation contract](../NavigationContract.md), [latest verified results](../Verification.md), [task-level implementation status](implementation-status.md) and [strict navigation review](navigation-strict-review-2026-11-07.md). Original evidence below remains unchanged.
+
 Analysis-only, 2026-11-07. References use the same dirty working-tree baseline as [architecture-audit.md](architecture-audit.md). Finding IDs refer to its full evidence/priority register. No item below authorizes deletion or refactoring during this audit. The prior report is preserved at [history/pre-alerts-2026-11-07/redundancy-analysis.md](history/pre-alerts-2026-11-07/redundancy-analysis.md). F16 now has an implementation; its remaining work is verification/hardening rather than adding a missing error system.
 
 ## What is actually redundant

@@ -1,5 +1,7 @@
 # Navigation, deep-link, alert and lifecycle audit
 
+> **Historical audit snapshot.** References to "current", line numbers, test counts and open findings below describe the audit baseline before subsequent alert/navigation hardening. They are not a current defect list. See the [navigation contract](../NavigationContract.md), [latest verified results](../Verification.md), [task-level implementation status](implementation-status.md) and [strict navigation review](navigation-strict-review-2026-11-07.md). Original evidence below remains unchanged.
+
 Analysis-only, 2026-11-07; current working-tree baseline from [architecture-audit.md](architecture-audit.md). F-prefixed references point to that report's detailed findings. Source tracing establishes the stated request sequence; it does not substitute for animated Simulator execution.
 
 ## Current state machine
