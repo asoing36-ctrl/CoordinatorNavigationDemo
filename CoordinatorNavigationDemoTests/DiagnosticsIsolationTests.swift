@@ -24,8 +24,17 @@ import UIKit
             let stack = navigation.viewControllers.map(ObjectIdentifier.init)
             app.submit(code: authenticated ? "ADD-CRED" : "NEW-USER")
             try await waitForNavigationCondition { gate.arrivals == 1 }
-            try await waitForNavigationCondition(diagnostics: { "flow=\(app.flow.rawValue), routes=\(router.routes)" }) {
-                app.flow == (authenticated ? .authenticated : .phoneAssociation) && navigation.transitionCoordinator == nil
+            let completedRoutes: [Route] = authenticated ? [.home, .secondary] : [.welcome, .redeem, .phone]
+            // Business flow advances before queued UIKit pushes finish. A nil
+            // transition coordinator can also be the gap between two pushes.
+            // Require the intended native screen while metrics remains held.
+            try await waitForNavigationCondition(diagnostics: {
+                "flow=\(app.flow.rawValue), routes=\(router.routes), top=\(String(describing: navigation.topViewController)), metricsArrivals=\(gate.arrivals)"
+            }) {
+                app.flow == (authenticated ? .authenticated : .phoneAssociation) &&
+                    router.routes == completedRoutes && router.backBlocked == !authenticated &&
+                    (authenticated || navigation.topViewController is AssociatePhoneViewController) &&
+                    navigation.topViewController?.viewIfLoaded?.window != nil && navigation.transitionCoordinator == nil
             }
             await app.waitForOperation()
             if authenticated {

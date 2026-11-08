@@ -60,7 +60,9 @@ enum NavigationRejection: String, Equatable, Sendable {
     private let maximumPendingNavigation: Int
     private let maximumNavigationBurst: Int
     private var navigationSinceAlert = 0
-    private var alertPresentation: AlertPresentation?
+    // Internal read access lets component tests select through the real renderer
+    // adapter boundary; ownership and mutation remain exclusively in this router.
+    private(set) var alertPresentation: AlertPresentation?
     private var navigationTransitioning = false
     private var presentationTransitioning = false
     private var transitioning: Bool { navigationTransitioning || presentationTransitioning }

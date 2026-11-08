@@ -44,6 +44,7 @@
 		5B08A4EB14309D12E4A88C50 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 162C9BE0B27B54CE3EADA295 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift */; };
 		23761B46377B3E8994621061 /* CoordinatorNavigationDemoTests/SimplificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5CEE5A825AC949C0EB73675 /* CoordinatorNavigationDemoTests/SimplificationTests.swift */; };
 		98246A316CF248C28C77D5EB /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53C7594C812D05E9BFF7DA4 /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift */; };
+		FF9E338CA055D626037BD385 /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 679524441320736E12C20B5D /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -106,6 +107,7 @@
 		162C9BE0B27B54CE3EADA295 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift; sourceTree = "<group>"; };
 		C5CEE5A825AC949C0EB73675 /* CoordinatorNavigationDemoTests/SimplificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/SimplificationTests.swift; sourceTree = "<group>"; };
 		A53C7594C812D05E9BFF7DA4 /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift; sourceTree = "<group>"; };
+		679524441320736E12C20B5D /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +143,7 @@
 				A3865ED2D485E89242C54C0C /* CoordinatorNavigationDemoTests/QueuePolicyTests.swift */,
 				FA055E09B69436F26AE3C52C /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift */,
 				A53C7594C812D05E9BFF7DA4 /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift */,
+				679524441320736E12C20B5D /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift */,
 				C5CEE5A825AC949C0EB73675 /* CoordinatorNavigationDemoTests/SimplificationTests.swift */,
 				162C9BE0B27B54CE3EADA295 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift */,
 				19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */,
@@ -409,6 +412,7 @@
 				6BB25B67789D126712F01FED /* CoordinatorNavigationDemoTests/QueuePolicyTests.swift in Sources */,
 				DF85CF3EAC1B3E00978EAEE6 /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift in Sources */,
 				98246A316CF248C28C77D5EB /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift in Sources */,
+				FF9E338CA055D626037BD385 /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift in Sources */,
 				23761B46377B3E8994621061 /* CoordinatorNavigationDemoTests/SimplificationTests.swift in Sources */,
 				5B08A4EB14309D12E4A88C50 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift in Sources */,
 				188CEB08B6CA28E34B52F975 /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift in Sources */,

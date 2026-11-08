@@ -1,5 +1,183 @@
 # Verification record
 
+## Current AUD-04 revision — focused and full user runs passed (2026-11-08, 20:00 / 20:02 / 20:18)
+
+Inspected three completed user-owned Xcode result bundles. The corrected picker
+selection assertion and held-metrics native readiness predicate passed focused
+runs and the complete scheme. **115 unit + 33 UI = 148 declarations passed**,
+with **237 expanded runs**, zero failures/skips/recorded runtime warnings.
+Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The user built and executed
+these runs; the agent read the results and updated documentation.
+
+| User-owned bundle | Actual result |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.08_20-00-28-+0200.xcresult` | DiagnosticsIsolationTests: **6/6 declarations / 8 expanded runs passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_20-02-21-+0200.xcresult` | NavigationUITests: **33/33 UI methods passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_20-18-38-+0200.xcresult` | Full scheme: **115/115 unit + 33/33 UI passed; 237 expanded runs passed** |
+| Failures / skipped / recorded runtime warnings | **0 / 0 / 0** in all three bundles |
+
+All bundles are under
+`~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`.
+The full test tree confirms both metrics parameters, all six `testRecovery…` UI
+methods and all 58 new recovery unit/component cases passed. All seven failures
+from the earlier 19:38 run are resolved on this destination. The source has not
+changed since the passing run; this follow-up changes documentation only.
+
+AUD-04's implemented matrix is verified for this Simulator: exact controller,
+feature modal, Home owner, original session and data preservation; all three
+error families and both styles at the coordinator/queue boundary; repeated Retry
+failures and eventual success/Cancel; distinct queued work; real renderer cleanup
+above each destination; inactive response delivery; typed selection→stop/reset;
+and six representative OS URL/native-button workflows with later navigation.
+No production behavior change was needed for the two test-assumption corrections.
+
+This is bounded acceptance evidence. The exhaustive 36-case cross-product uses
+RouterSpy and the real business/alert queue; attached-window cases use real
+renderers; UI workflows are representative. Actual OS suspension, native-button
+auto-dismissal/reset overlap, iOS 17/current supported OS and physical-device
+coverage remain separate AUD-14/release gates. No long-session, repeated-gesture
+or console-cleanliness claim is made. The agent's earlier environment-blocked
+attempts remain historical evidence below. Its separate portable run passed 30
+tests across four suites; that target excludes native navigation tests.
+
+Implementation, test corrections and verification documentation are included
+together on `test/error-recovery-matrix` at the user's request. Merge and push
+are outside this change.
+
+## Earlier AUD-04 full run — seven failures before the passing correction runs (2026-11-08, 19:38)
+
+Inspected the completed user-owned bundle
+`Test-CoordinatorNavigationDemo-2026.11.08_19-38-01-+0200.xcresult` in
+`~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`.
+The entire scheme ran on iPhone 17 / iOS 27.0 Simulator, arm64. Result:
+**141 passed / 7 failed of 148 declarations**, **230 passed / 7 failed of 237
+expanded runs**, zero skips and zero recorded runtime warnings. Console diagnostics
+were not analyzed in this follow-up; recorded runtime warnings do not establish
+console cleanliness.
+
+| Scope | Actual result before corrections |
+|---|---|
+| Native unit tests | 114 passed / 1 failed of 115 declarations; 203 passed / 1 failed of 204 expanded runs |
+| ErrorRecoveryFlowTests | Both declarations / all 40 expanded cases passed |
+| ErrorRecoveryPresentationTests | All 3 declarations / 18 expanded cases passed |
+| UI tests | 27 passed / 6 failed of 33 methods |
+
+All **58 new unit/component cases passed**. This includes exact original
+stack/modal/session/data identity, repeated failures and queued work, both real
+renderers, inactive response delivery and typed selection→stop/reset. It does not
+establish the six new UI workflows: every one failed before OS URL delivery.
+
+Two test assumptions explain the seven reported failures:
+
+1. All six `NavigationUITests.testRecovery…` methods fail in the shared helper at
+   the picker assertion: accessibility `value` is `""`, not `"1"`. It is not the
+   selection-state API. Changed the helper to wait for the selected segment's
+   public `isSelected` state using a bounded predicate expectation. No arbitrary
+   delay, timeout increase or dropped selection assertion.
+2. `DiagnosticsIsolationTests.heldMetricsCannotDelayProtectedCompletionOrAuthenticatedNavigation`
+   fails only for `authenticated: false`: the actual top is Redeem's hosting
+   controller at the Phone assertion. Business `.phoneAssociation` is set before
+   Phone's push; a nil transition coordinator can occur between serial pushes
+   while the router reserves its next main-queue drain. The old readiness predicate
+   accepted that intermediate state. It now requires the intended complete routes,
+   actual Phone controller, blocked Back and attached native view, as well as the
+   existing flow/transition check. The metrics gate remains closed throughout.
+
+Only test code was changed for these failures. Post-correction native execution
+was attempted, but **exit 70 before testing** again: CoreSimulatorService was
+unavailable to this session. Log: `/private/tmp/coordinator-aud04-corrections.log`;
+invocation result: `/private/tmp/CoordinatorAUD04-Corrections-20261108.xcresult`.
+**The corrections are not yet runtime verified.** The user's earlier run does
+prove the new source compiled in their Xcode environment; it does not prove these
+subsequent test edits compile or pass. Static whitespace/source/document checks
+are separate from runtime evidence.
+
+Rerun DiagnosticsIsolationTests and the six recovery UI methods first, then the
+full scheme. The focused command below now includes DiagnosticsIsolationTests.
+The native-button auto-dismissal/reset overlap, actual OS suspension and wider
+OS/device gates remain separate AUD-14 work.
+
+## Earlier agent attempt — portable passed; native execution blocked (2026-11-08, 19:35–19:36)
+
+Branch `test/error-recovery-matrix`, based on `455999c`. Five new Swift Testing
+methods describe **58 expanded cases**: 36 error/destination/style combinations,
+4 repeated-failure outcomes, 12 attached-window destination/style combinations,
+2 inactive response cases and 4 selected-action stop/reset cases. Six new UI
+methods tap actual native Retry/Cancel buttons after OS URL delivery. Source now
+contains **115 unit + 33 UI = 148 declarations** (expected **237 expanded runs**).
+These are inventory counts, **not executed results**. Last passing evidence remains
+110 unit + 27 UI / 173 expanded runs below.
+
+The user explicitly authorized agent-run tests after the earlier execution restriction.
+The agent attempted focused native tests, ran the portable suite, and attempted a
+separate native build-for-testing with Xcode 27.1 / 27A9275. Actual results:
+
+| Command / scope | Result | Evidence |
+|---|---|---|
+| `swift test --disable-sandbox --scratch-path /private/tmp/coordinator-aud04-portable` | **Passed: 30 tests across four suites**, exit 0 | `/private/tmp/coordinator-aud04-portable.log` |
+| Focused ErrorRecoveryFlowTests, ErrorRecoveryPresentationTests and six recovery UI methods | **Could not start**, exit 70; no Simulator destination available | `/private/tmp/coordinator-aud04-focused.log` |
+| `xcodebuild build-for-testing` for generic iOS Simulator | **Build failed**, exit 65; SwiftUI macro process blocked by sandbox | `/private/tmp/coordinator-aud04-build.log` |
+| Complete native scheme | Not attempted after the focused run could not resolve a Simulator | Same environment restriction; no test failure is inferred |
+
+CoreSimulator discovery reported connection invalid/refused (NSPOSIXErrorDomain
+61), disabled Simulator device support and listed only generic Simulator/device
+placeholders. The requested installed iPhone 17 / iOS 27.0 device ID was
+`1FDDD658-2A9C-4264-AE10-1E8A2DC00DCF`; no matching live destination was available
+in this session. The focused attempt used
+`/private/tmp/CoordinatorAUD04-20261108-1936.xcresult`; this is an invocation failure,
+not a passing test result bundle.
+
+The generic build reported `sandbox-exec: sandbox_apply: Operation not permitted`
+and a malformed SwiftUI macro plugin response for `@State` in
+AlertPresentation.swift and DemoViews.swift. These diagnostics do not establish a
+source defect. Native compilation and the new 64 expanded unit/component/UI cases
+remain unverified. No production code was changed to bypass these restrictions.
+The portable target excludes UIKit/navigation test files and does **not** validate
+the new AUD-04 matrix.
+
+Static project, XML and source checks are recorded in the
+[AUD-04 ledger](plans/error-recovery-matrix.md).
+Production behavior and NavigationRouting remain unchanged. The sole production
+change exposes internal read access to the router's existing AlertPresentation;
+its setter and ownership remain private.
+
+Component tests call the real renderer's typed select boundary. They prove, when
+executed, cleanup and coordinator cancellation at that boundary, not a native
+auto-dismissal race. UI tests tap actual buttons separately. The inactive case
+holds a repository call across explicit router activity changes; actual OS
+suspension, device/OS coverage and native-button/reset overlap remain wider
+AUD-14 validation gates.
+
+Run these suites in Xcode first: ErrorRecoveryFlowTests,
+ErrorRecoveryPresentationTests and the six NavigationUITests methods prefixed
+`testRecovery`. Then run the complete shared scheme. Equivalent terminal commands
+for the user (replace DEVICE-UDID; choose fresh result paths):
+
+```sh
+xcodebuild test -project CoordinatorNavigationDemo.xcodeproj \
+  -scheme CoordinatorNavigationDemo \
+  -destination 'platform=iOS Simulator,id=DEVICE-UDID' \
+  -parallel-testing-enabled NO \
+  -only-testing:CoordinatorNavigationDemoTests/DiagnosticsIsolationTests \
+  -only-testing:CoordinatorNavigationDemoTests/ErrorRecoveryFlowTests \
+  -only-testing:CoordinatorNavigationDemoTests/ErrorRecoveryPresentationTests \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testRecoveryFromHomeWithUIKitInvalidAlert \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testRecoveryFromSecondaryWithSwiftUIExpiredAlert \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testRecoveryFromDetailsWithUIKitNetworkRetry \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testRecoveryFromPushedXIBWithSwiftUIInvalidAlert \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testRecoveryAboveSwiftUISheetWithUIKitExpiredAlert \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testRecoveryAboveUIKitFullScreenWithSwiftUINetworkRetry \
+  -resultBundlePath /private/tmp/CoordinatorErrorRecovery.xcresult \
+  CODE_SIGNING_ALLOWED=NO
+
+xcodebuild test -project CoordinatorNavigationDemo.xcodeproj \
+  -scheme CoordinatorNavigationDemo \
+  -destination 'platform=iOS Simulator,id=DEVICE-UDID' \
+  -parallel-testing-enabled NO \
+  -resultBundlePath /private/tmp/CoordinatorErrorRecoveryFull.xcresult \
+  CODE_SIGNING_ALLOWED=NO
+```
+
 ## Current ownership/state simplification — user focused/full runs passed (2026-11-08, 15:00 / 15:02 / 15:05)
 
 The user built and ran AUD-07–09 on `refactor/navigation-simplification`, based on merged/pushed `de12aab`. **110 native unit + 27 UI = 137 declarations passed**, with **173 expanded runs**, zero failures/skips and zero recorded runtime warnings. Focused SimplificationTests passed 5 declarations / 13 expanded runs; DiagnosticsIsolationTests passed 6 declarations / 8 expanded runs. Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The agent only inspected completed artifacts and ran no compiler, build, tests, Simulator or app.

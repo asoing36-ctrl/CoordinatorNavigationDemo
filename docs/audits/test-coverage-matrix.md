@@ -1,5 +1,70 @@
 # Test coverage and execution matrix — including alerts
 
+## Current AUD-04 evidence — focused/full user runs passed, 2026-11-08
+
+The 20:00 diagnostics run passed **6 declarations / 8 cases**; the 20:02 UI run
+passed **33 methods**; the 20:18 full scheme passed **115 unit + 33 UI = 148
+declarations / 237 expanded runs**. Zero failures/skips/recorded runtime warnings
+on iPhone 17 / iOS 27.0 Simulator. All prior seven failures passed after the two
+test-only corrections. Exact bundles are in [Verification.md](../Verification.md).
+
+| Requirement | Passing evidence |
+|---|---|
+| Three errors × six destinations × two styles; exact stack/modal/Home/session/data preservation; Cancel advances distinct work | ErrorRecoveryFlowTests: 36 matrix cases |
+| Repeated Retry failure, eventual success/Cancel, duplicate suppression, obsolete request IDs | ErrorRecoveryFlowTests: 4 scripted-repository cases |
+| Both real renderers above six destinations, feature modal ownership, ordinary Back/dismiss and another presentation | ErrorRecoveryPresentationTests: 12 attached-window cases |
+| API failure returned while inactive and displayed after activity resumes | ErrorRecoveryPresentationTests: 2 held-request cases |
+| Typed renderer selection followed by stop/reset, stale selection suppression and fresh flow after reset | ErrorRecoveryPresentationTests: 4 cases |
+| Actual alert buttons after OS URL delivery; all six destinations; stack preservation and later presentation | Six `NavigationUITests.testRecovery…` workflows, all passed |
+| Held metrics cannot gate actual Phone installation or authenticated navigation | Both DiagnosticsIsolationTests parameters passed focused/full |
+
+The exhaustive business matrix uses RouterSpy plus the real coordinator, use case,
+backend and alert queue. Native renderers and native button taps have separate
+representative evidence. Actual OS suspension, native-button auto-dismissal/reset
+overlap, minimum/current OS and physical-device validation remain separate gates.
+Historical failures and initial source-only inventory below are superseded by
+this passing evidence; no console-cleanliness or universal reliability claim.
+
+## Earlier user full run — 2026-11-08, 19:38
+
+**148 declarations / 237 expanded runs executed: 141/230 passed, 7 failed**.
+All 40 ErrorRecoveryFlowTests cases and 18 ErrorRecoveryPresentationTests cases
+passed. All six new UI workflows stopped at the helper's incorrect selected-value
+assertion before URL delivery. One existing unauthenticated held-metrics case
+accepted an intermediate native stack. Test-only selected-state and actual-Phone
+readiness corrections now await rerun. No failed assertion was removed and no
+production navigation behavior changed. See [Verification.md](../Verification.md)
+for exact failures, user artifact, environment-blocked post-edit attempt and commands.
+The initial source-only inventory below is historical; actual native evidence now
+exists for the 58 unit/component cases, while UI acceptance is still pending.
+
+## Initial AUD-04 source supplement — before the 19:38 run
+
+The following coverage is newly written on `test/error-recovery-matrix`. It is
+separate from all passing evidence and historical gaps below. See
+[Verification.md](../Verification.md) for user-run commands and evidence limits.
+
+| Requirement | New test | Cases / boundary |
+|---|---|---|
+| INVALID, EXPIRED, NETWORK-FAIL on Home, Secondary, details, pushed XIB, SwiftUI sheet, UIKit full-screen, both styles | ErrorRecoveryFlowTests.failuresPreserveEveryDestinationAndCancelAdvancesQueuedWork | 36; real coordinator/use case/backend/alert queue, RouterSpy; exact session, credentials, permissions, Home/controller/modal identity and zero login/create/phone; Cancel advances distinct queued work |
+| Repeated Retry failures, eventual success or Cancel, active/queued duplicates, obsolete request IDs | ErrorRecoveryFlowTests.repeatedRetryFailureKeepsOriginalTransactionUntilCancelOrSuccess | 4; scripted actor fails ADD-CRED deterministically, real backend executes queued EXISTING-USER; exact attempts, original transaction/session, new alert IDs, unchanged data until success |
+| Both native renderers above every feature destination; preservation, Back/dismiss and next presentation | ErrorRecoveryPresentationTests.nativeRecoveryPreservesFeatureAndAllowsFurtherNavigation | 12; attached window, real router/renderers/XIBs and NETWORK-FAIL; typed renderer selection, not native button synthesis |
+| Failure response arrives while inactive above a full-screen XIB | ErrorRecoveryPresentationTests.failureReturnedWhileInactiveWaitsAndPreservesFullScreen | 2; held repository request and explicit activity state; no premature presentation, correct modal/data after activation and Cancel |
+| Stop/reset after selection, before scheduled dismissal; stale selection cannot revive retry/queued work | ErrorRecoveryPresentationTests.stopOrResetAfterSelectionSuppressesRetryAndQueuedWork | 4; router-owned real renderer, typed selection boundary; actual cleanup, attempts remain one, queued work removed, reset permits fresh onboarding |
+| Native button and OS URL delivery from each destination | NavigationUITests.testRecoveryFromHomeWithUIKitInvalidAlert; testRecoveryFromSecondaryWithSwiftUIExpiredAlert; testRecoveryFromDetailsWithUIKitNetworkRetry; testRecoveryFromPushedXIBWithSwiftUIInvalidAlert; testRecoveryAboveSwiftUISheetWithUIKitExpiredAlert; testRecoveryAboveUIKitFullScreenWithSwiftUINetworkRetry | 6 representative UI workflows; all three errors and both styles; actual Retry/Cancel, feature retained until explicit Back/dismiss, credentials/permissions/login count, original app instance and next presentation |
+
+Added inventory: 5 unit declarations / 58 expanded cases and 6 UI methods.
+Total source: 148 declarations / expected 237 expanded cases. Native runtime pending.
+After the user authorized execution, the portable target passed 30 tests / 4 suites;
+it excludes the new UIKit/navigation tests. Focused native execution failed before
+starting (CoreSimulator connection refused), and generic build-for-testing failed
+at a sandbox-blocked SwiftUI macro process. These environment failures are not
+failed assertions; see the separate execution record in Verification.md.
+The exhaustive matrix uses the queue/spy boundary; native cases use NETWORK-FAIL;
+UI cases are representative, not a 36-case native UI cross-product. Actual OS
+suspension and native-button/reset auto-dismissal overlap remain wider AUD-14
+validation, with device/minimum-OS/repeated gesture gates unchanged.
+
 > **Historical coverage snapshot.** References to "current", source lines, test counts, failures and missing coverage below describe the audit baseline before subsequent alert/navigation hardening. Use [Verification.md](../Verification.md) for latest execution evidence, the [implementation status](implementation-status.md) for added work, and the [strict navigation review](navigation-strict-review-2026-11-07.md) for remaining validation gaps. Original evidence below remains unchanged.
 
 ## Ownership/state supplement — 2026-11-08, focused/full user runs passed

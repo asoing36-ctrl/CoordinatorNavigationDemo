@@ -1,5 +1,15 @@
 # Global alerts and URL delivery
 
+AUD-04 now adds a full error-family/destination/style flow matrix, repeated recovery,
+attached-window presentation cleanup and six representative native button UI cases.
+**All 58 new unit/component cases and six new UI workflows passed** in the
+user's corrected full run: 148 declarations / 237 expanded runs, zero failures,
+skips or recorded runtime warnings. Both test-assumption corrections passed
+focused and full runs. Earlier baseline counts below refer to prior revisions.
+[Coverage boundaries](audits/test-coverage-matrix.md) distinguish real queue/spy,
+real renderer typed selection and native button tests. Recovery alerts remain
+flow-scoped despite being visible app-wide; reset/stop suppress pending actions.
+
 Swift 5 / iOS 17, the coordinator hierarchy, one navigation controller and actual XIB integration remain unchanged. This revision addresses AUD-14/AUD-17 and the alert request invariant from F19. It does not execute the architecture simplification plan.
 
 The subsequent [ownership/state simplification](plans/navigation-simplification.md) passed **110 unit + 27 UI = 137 declarations / 173 expanded runs**, zero failures/skips/recorded runtime warnings. Authenticated redemption no longer creates an invisible status coordinator; a concrete transaction retains the original session/recovery eligibility, and alert callbacks check that transaction before acting. The router, renderers and alert queue are unchanged. Diagnostic snapshot/metrics work cannot gate navigation. Focused new suites also passed; the verified revision and evidence are committed together at the user's request.

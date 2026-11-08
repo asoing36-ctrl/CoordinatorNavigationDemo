@@ -1,6 +1,6 @@
 # Previous audit: implementation status
 
-Reconciled on 2026-11-08 against `refactor/navigation-simplification`, based on merged/pushed de12aab. The previous [17-task improvement plan](improvement-plan.md) is not fully completed. The user authorized AUD-07–09 after prioritizing and verifying navigation/alert lifecycle reliability.
+Reconciled on 2026-11-08 against `test/error-recovery-matrix`, based on verified `455999c` (its parent de12aab is merged/pushed). The previous [17-task improvement plan](improvement-plan.md) is not fully completed. The user authorized AUD-07–09 after prioritizing and verifying navigation/alert lifecycle reliability.
 
 The simplification passed the user's focused/full runs: **110 unit + 27 UI = 137 declarations / 173 expanded runs**, zero failures/skips/recorded runtime warnings. Typed child owners replace the registry/UUIDs; business transaction/recovery state replaces invisible authenticated UI; a read-only snapshot and independently owned metrics replace diagnostic mirrors and the awaited navigation metric. AUD-07–09 is implemented and verified for the selected Simulator. See [the plan/review ledger](../plans/navigation-simplification.md). The verified implementation, tests and evidence are committed together at the user's request.
 
@@ -12,14 +12,22 @@ The [validation follow-up](../plans/navigation-validation-follow-up.md) passed c
 
 AUD-06/AUD-16 work in [queue-and-alert-policy.md](../plans/queue-and-alert-policy.md) passed focused/full user runs: bounded admission, reserved flow capacity, scoped lifetime and fair scheduling. Source review identified a saturation/stranded-onboarding path; both regression cases passed with two protected slots, reaching Phone and completing Skip without dropping accepted ordinary work. The verified policy work is committed with its evidence; consuming-application policy tuning and OS/device evidence remain open.
 
+The corrected AUD-04 revision passed focused DiagnosticsIsolationTests (6/8),
+all UI tests (33/33) and the full scheme: **115 unit + 33 UI = 148 declarations /
+237 expanded runs**, zero failures/skips/recorded runtime warnings. All 58 new
+component cases and six recovery UI workflows passed on iPhone 17 / iOS 27.0
+Simulator. The seven earlier failures from two test assumptions are resolved in
+these runs. Implementation and evidence are recorded together; wider OS/device and
+native-button/reset timing gates remain separate. See [Verification.md](../Verification.md).
+
 ## Task-level crosswalk
 
 | Task | Status | Current evidence and remaining work |
 |---|---|---|
-| AUD-01 — Baseline and real suites | Current full simplification revision verified | User-run 137 declarations / 173 expanded runs passed, plus focused ownership/diagnostic suites. Exact evidence and destination limits are in [Verification.md](../Verification.md). No build/test was initiated by the agent. |
+| AUD-01 — Baseline and real suites | Current AUD-04 revision verified | Focused diagnostics: 6 declarations / 8 expanded cases passed. All 33 UI methods passed. Full user run: 115 unit + 33 UI = 148 declarations / 237 expanded runs passed, zero failures/skips/recorded runtime warnings. See [Verification.md](../Verification.md). |
 | AUD-02 — Deterministic business suspension/cancellation seams | Selected timings implemented and passed | Constructor injection separates CredentialRepository from mock reset/seed/metrics administration. LifecycleTimingTests holds completed create/login/redeem results and in-flight phone/seed calls, checking reset/stop, weak release and obsolete completion. Reset retains and joins cancelled phone work before environment reset. All selected lifecycle cases passed; wider failure/double-submission matrices remain open. |
 | AUD-03 — Attached-window router integration | Controlled callback and representative swipe cases verified | 22 router and 5 follow-up declarations execute real UIKit lifecycle, cancelled Back/presentation, disconnect release and observer/rejection recovery. Those cases and the native-grabber completed sheet swipe passed. Controlled native cancellation proves interaction; the short UI cancellation smoke does not independently prove engagement. Repeated OS/device gestures and scene teardown remain separate validation. |
-| AUD-04 — Global error acceptance matrix | Implemented behavior; matrix incomplete | Authenticated Retry/Cancel and stack/modal preservation have passing evidence. New passing cases invoke an obsolete captured coordinator action against a new held flow and cancel each renderer after typed selection before queued dismissal. The full error-family × destination matrix, repeated failures and real native selected-action/reset timing remain open. |
+| AUD-04 — Global error acceptance matrix | Implemented matrix verified on selected Simulator | All 58 new unit/component cases and six native UI workflows passed. Picker selection and metrics-readiness corrections passed focused/full runs. Full scheme: 148 declarations / 237 expanded runs passed. Exact original stack/modal/session/data identity, repeated recovery, queued work and both renderers are covered at documented boundaries. Native-button auto-dismissal/reset overlap, actual OS suspension and broader OS/device evidence remain separate AUD-14 gates. See [the ledger](../plans/error-recovery-matrix.md). |
 | AUD-05 — Stop invalidates queued navigation | Implemented and verified | AppCoordinator.reset/stop clear waiting commands before alert cleanup. The full rerun passed lifecycle cases for stale protected pushes, pending modal release, authorized replacement and normal progression after held transitions, including the policy integration. |
 | AUD-06 — Bounded retention and overflow | Implemented; representative tests passed | Router, business, typed startup/reset staging and alert arrays have explicit bounds and reject-newest feedback. Reserved slots protect required screens and recovery. Saturation, FIFO, handoff and staging passed. The duplicate weak-release failure now passed with explicit autoreleasepool boundaries, accepted-work retention/release control and duplicate-burst coverage. App-specific sizing/stress remain separate. |
 | AUD-07 — One child-retention mechanism | Implemented and verified | Typed redeem/onboarding/home properties are the sole child owners. Registry, retain/release bookkeeping and coordinator-only IDs are removed. Weak exit tests and retained Home across authenticated grants/errors passed. No feature merger or generic registry was introduced. |
@@ -39,8 +47,9 @@ Statuses describe implementation and evidence, not a completion percentage or pr
 ## Next work for the user's navigation priority
 
 1. Preserve the verified simplification revision and exact result artifacts; keep its suites as regression gates. Implementation, tests and evidence are committed together at the user's request.
-2. Repeat native sheet-pan delivery and validate OS-driven scene teardown on supported runtimes/devices. The controlled reconnection case suspends real startup but invokes a separate delegate; it cannot establish OS callback delivery. Native action/reset overlap still needs separate validation.
-3. Tune the tested capacity/reservation/lifetime/fairness defaults for the consuming application's flows and workloads; extend startup interruption and association-completion timing coverage where needed.
-4. Complete iOS 17/current supported OS and physical-device validation, real gesture repetition and long-session profiling.
+2. Preserve the AUD-04 implementation and inspected focused/full evidence together: 148 declarations / 237 expanded runs passed. Keep both recovery suites, DiagnosticsIsolationTests and all UI workflows as regression gates. Commands and exact artifacts are in [Verification.md](../Verification.md).
+3. Repeat native sheet-pan delivery and validate OS-driven scene teardown on supported runtimes/devices. The controlled reconnection case suspends real startup but invokes a separate delegate; it cannot establish OS callback delivery. Native action/reset overlap still needs separate validation.
+4. Tune the tested capacity/reservation/lifetime/fairness defaults for the consuming application's flows and workloads; extend startup interruption and association-completion timing coverage where needed.
+5. Complete iOS 17/current supported OS and physical-device validation, real gesture repetition and long-session profiling.
 
 The authorized ownership/transaction/diagnostic simplifications now have passing user-run evidence; they preserve the coordinator hierarchy and router implementation. Phone-layout polish and the broader acceptance matrices remain separate.

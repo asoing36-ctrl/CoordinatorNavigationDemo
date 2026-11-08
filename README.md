@@ -1,5 +1,11 @@
 # CoordinatorNavigationDemo
 
+AUD-04 passed focused and full user runs: **115 unit + 33 UI = 148 tests /
+237 expanded runs**, zero failures/skips/recorded runtime warnings on iPhone 17 /
+iOS 27.0 Simulator. See [verification evidence](docs/Verification.md) and the
+[coverage matrix](docs/audits/test-coverage-matrix.md) for scope and remaining
+OS/device lifecycle validation gates.
+
 A native iOS 17+ navigation architecture demo using Swift 5 language mode, SwiftUI, UIKit, two real XIBs, async/await, Swift Testing, and XCUITest. No dependencies, project generator, server, or signing team is required to build for Simulator. Developed with Xcode 27.1 / the Swift 6 compiler, with complete concurrency checking.
 
 ## Open and run

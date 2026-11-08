@@ -1,5 +1,15 @@
 # Navigation contract and production validation
 
+The [AUD-04 error recovery matrix](plans/error-recovery-matrix.md) passed focused
+and full user runs: **148 declarations / 237 expanded runs**, zero failures/skips/
+recorded runtime warnings on iPhone 17 / iOS 27.0 Simulator. All 58 new component
+cases and six native UI workflows passed, including the corrected selection and
+held-metrics readiness assertions. It checks original stack/modal/controller
+identity and ordinary navigation after cleanup. The NavigationRouting protocol,
+scheduling, Back policy and alert behavior are unchanged; internal read access to
+the existing owned alert presentation supports component testing. Native-button/
+reset overlap and broader device/OS lifecycle validation remain separate gates.
+
 This document describes the reusable navigation layer, independently of the demo account/credential flow. Swift 5, iOS 17, one UINavigationController and main-actor isolation remain the constraints.
 
 The ownership/state simplification passed the user's focused/full runs: **110 unit + 27 UI = 137 declarations / 173 expanded runs**, zero failures/skips/recorded runtime warnings. AppCoordinator uses typed child owners and a transaction/recovery context independently of optional status UI; diagnostic snapshots/metrics cannot drive or hold routing. The router implementation and its policies are unchanged. See [the simplification plan](plans/navigation-simplification.md) and [Verification.md](Verification.md) for artifacts and limits. The verified revision and evidence are committed together at the user's request.

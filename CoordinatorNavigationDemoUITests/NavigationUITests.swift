@@ -268,6 +268,141 @@ import XCTest
         }
         XCTAssertEqual(label.label, "Login requests: \(count)", file: file, line: line)
     }
+
+    // Representative native button workflows complement the exhaustive coordinator
+    // matrix. URLs are delivered to this application instance, including over modals.
+    func testRecoveryFromHomeWithUIKitInvalidAlert() {
+        verifyRecovery(destination: .home, style: "UIKit", code: "INVALID", retry: false)
+    }
+    func testRecoveryFromSecondaryWithSwiftUIExpiredAlert() {
+        verifyRecovery(destination: .secondary, style: "SwiftUI", code: "EXPIRED", retry: false)
+    }
+    func testRecoveryFromDetailsWithUIKitNetworkRetry() {
+        verifyRecovery(destination: .details, style: "UIKit", code: "NETWORK-FAIL", retry: true)
+    }
+    func testRecoveryFromPushedXIBWithSwiftUIInvalidAlert() {
+        verifyRecovery(destination: .xib, style: "SwiftUI", code: "INVALID", retry: false)
+    }
+    func testRecoveryAboveSwiftUISheetWithUIKitExpiredAlert() {
+        verifyRecovery(destination: .sheet, style: "UIKit", code: "EXPIRED", retry: false)
+    }
+    func testRecoveryAboveUIKitFullScreenWithSwiftUINetworkRetry() {
+        verifyRecovery(destination: .fullScreen, style: "SwiftUI", code: "NETWORK-FAIL", retry: true)
+    }
+
+    private enum RecoveryScreen {
+        case home, secondary, details, xib, sheet, fullScreen
+        var openingControl: String? {
+            switch self {
+            case .home: return nil
+            case .secondary: return "openSecondary"
+            case .details: return "openDetails"
+            case .xib: return "openUIKit"
+            case .sheet: return "presentSwiftUI"
+            case .fullScreen: return "presentUIKit"
+            }
+        }
+        var title: String {
+            switch self {
+            case .secondary: return "Secondary"
+            case .details: return "Credential Details"
+            case .xib: return "UIKit Lab"
+            default: return "Home"
+            }
+        }
+        var stack: String {
+            switch self {
+            case .secondary: return "home → secondary"
+            case .details: return "home → details"
+            case .xib: return "home → lab"
+            default: return "home"
+            }
+        }
+    }
+    private func verifyRecovery(destination: RecoveryScreen, style: String, code: String, retry: Bool) {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        let identity = instanceIdentity()
+        let picker = app.segmentedControls["errorAlertStyle"]
+        for _ in 0..<6 {
+            if picker.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(picker.isHittable)
+        let selectedStyle = picker.buttons[style]
+        selectedStyle.tap()
+        // Segments expose selection through isSelected; their accessibility
+        // value can be empty even when selected on supported runtimes.
+        let selection = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: selectedStyle)
+        XCTAssertEqual(XCTWaiter.wait(for: [selection], timeout: 5), .completed,
+                       "The requested recovery alert style must be selected")
+        for _ in 0..<6 {
+            if app.buttons["openSecondary"].isHittable { break }
+            app.swipeDown()
+        }
+        if let control = destination.openingControl { findAndTap(control) }
+        assertRecoveryDestination(destination)
+        deliverToExistingApplication("credentialdemo://redeem?code=\(code)")
+        let alert = app.alerts["Unable to Redeem"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        let fragment = code == "INVALID" ? "invalid" : (code == "EXPIRED" ? "expired" : "failed")
+        XCTAssertTrue(alert.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", fragment)).firstMatch.exists)
+        // Cancel must release this intent and let a distinct queued intent run.
+        if !retry { deliverToExistingApplication("credentialdemo://redeem?code=ADD-CRED") }
+        acknowledgeAlert("Unable to Redeem", action: retry ? "Retry" : "Cancel")
+        assertRecoveryDestination(destination)
+        XCTAssertFalse(app.buttons["skipPhone"].exists)
+
+        // Preserve the feature modal until explicit dismissal; push screens must
+        // still expose normal Back. Component cases assert exact controller identity.
+        switch destination {
+        case .sheet:
+            XCTAssertEqual(app.staticTexts["modalStack"].label, "Underlying stack: home")
+            findAndTap("dismissSwiftUIModal")
+        case .fullScreen: findAndTap("dismissUIKitModal")
+        case .home: break
+        default:
+            app.navigationBars.buttons["Home"].tap()
+        }
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        for _ in 0..<6 {
+            if app.staticTexts["credentialCount"].isHittable { break }
+            app.swipeDown()
+        }
+        let granted = retry ? "Recovered Library" : "Premium Library"
+        XCTAssertTrue(app.staticTexts[granted].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["credentialCount"].label, "Credentials: 2")
+        XCTAssertEqual(app.staticTexts["permissions"].label, retry ? "Permissions: library, recovered" : "Permissions: library, premium")
+        XCTAssertEqual(instanceIdentity(), identity)
+        app.buttons["toggleDiagnostics"].tap()
+        XCTAssertEqual(app.staticTexts["overlayStack"].label, "Stack: home")
+        app.buttons["toggleDiagnostics"].tap()
+        assertLoginRequests(0)
+        // A later modal must still be possible after recovery cleanup.
+        for _ in 0..<6 {
+            if app.buttons["presentSwiftUI"].isHittable { break }
+            app.swipeDown()
+        }
+        findAndTap("presentSwiftUI")
+        XCTAssertTrue(app.buttons["dismissSwiftUIModal"].waitForExistence(timeout: 5))
+        app.buttons["dismissSwiftUIModal"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+    }
+    private func assertRecoveryDestination(_ destination: RecoveryScreen) {
+        switch destination {
+        case .sheet:
+            XCTAssertTrue(app.buttons["dismissSwiftUIModal"].waitForExistence(timeout: 5))
+            XCTAssertEqual(app.staticTexts["modalStack"].label, "Underlying stack: \(destination.stack)")
+        case .fullScreen:
+            XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["labOpenSwiftUI"].isHittable)
+        default:
+            XCTAssertTrue(app.navigationBars[destination.title].waitForExistence(timeout: 5))
+            app.buttons["toggleDiagnostics"].tap()
+            XCTAssertEqual(app.staticTexts["overlayStack"].label, "Stack: \(destination.stack)")
+            app.buttons["toggleDiagnostics"].tap()
+        }
+    }
     func testBothNativeAlertStylesFromSwiftUIAndXIB() {
         launch(["--authenticated"])
         XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
