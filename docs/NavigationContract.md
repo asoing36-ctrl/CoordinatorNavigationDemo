@@ -2,15 +2,21 @@
 
 This document describes the reusable navigation layer, independently of the demo account/credential flow. Swift 5, iOS 17, one UINavigationController and main-actor isolation remain the constraints.
 
+The ownership/state simplification passed the user's focused/full runs: **110 unit + 27 UI = 137 declarations / 173 expanded runs**, zero failures/skips/recorded runtime warnings. AppCoordinator uses typed child owners and a transaction/recovery context independently of optional status UI; diagnostic snapshots/metrics cannot drive or hold routing. The router implementation and its policies are unchanged. See [the simplification plan](plans/navigation-simplification.md) and [Verification.md](Verification.md) for artifacts and limits. The verified revision and evidence are committed together at the user's request.
+
 The bounded-queue/alert-lifetime revision passed the user's focused and full Simulator runs: **118 declarations / 136 expanded runs**, no failures/skips/recorded runtime warnings. The implementation and verification record are committed together after baseline `a9b7788`; see the [policy plan](plans/queue-and-alert-policy.md) and [verification evidence](Verification.md) for scope and remaining release gates.
 
-The working-tree [lifecycle timing follow-up](plans/lifecycle-timing.md) passed all eight declarations / 16 expanded runs. The latest full run passed **99 unit + 27 UI = 126 declarations / 152 expanded runs**, zero failures/skips/recorded runtime warnings. Queue lifetime-boundary assertions and the native-grabber sheet gesture both passed; the separate UI run passed 27/27. See [Verification.md](Verification.md). No router command, capacity or Back policy changes are part of either test-only follow-up.
+The prior [lifecycle timing follow-up](plans/lifecycle-timing.md) passed all eight declarations / 16 expanded runs and its full baseline passed **99 unit + 27 UI = 126 declarations / 152 expanded runs**. Those lifecycle, queue lifetime-boundary and native-grabber sheet cases passed again in the simplification run. See [Verification.md](Verification.md). No router command, capacity or Back policy changes are part of these follow-ups.
 
 ## Authority and ownership
 
 UIKit's viewControllers is the authoritative push stack. Route and Back-policy metadata describes those exact controller identities; it is retained until transitions finish because a cancelled pop can restore a temporarily removed controller. Feature-modal metadata is a separate presentation dimension, not another push stack.
 
 The composition root owns the router and navigation controller. Coordinators submit commands through NavigationRouting. Do not replace the navigation delegate/gesture delegate or mutate viewControllers from feature code. UIKit's own Back actions are reconciled by the router; direct programmatic Back remains protected by PolicyNavigationController. SwiftUI content must not introduce a competing NavigationStack.
+
+The fixed feature hierarchy uses typed properties as its only child owners; no UUID registry also retains them. A redeem transaction captures its original session and recovery eligibility independently of whether a screen is shown. Authenticated requests retain Home and the current controllers/modal. Recovery callbacks validate the transaction before retrying or completing it. Main-actor navigation decisions recheck validity after session/status publication, where synchronous observers may stop the flow.
+
+NavigationDiagnostics is an immutable value projection from the real owners; UI consumers cannot mutate it or use it as stack authority. It publishes as one value, and session-only changes are read after the completed assignment. DemoModel owns separate coalesced metrics work; at most one read runs, with one pending refresh flag. Cancellation suppresses stale results without forcing navigation/reset to join a read-only diagnostic operation.
 
 Controllers submitted for push/presentation must be detached from other containers/presenters/windows. Stack screens cannot be navigation/tab-bar/alert controllers. Replacement can reuse this stack's existing controllers or the router-owned modal after its queued dismissal. Ownership is revalidated at execution. Caller code must not reparent controllers while a queued request owns them.
 
@@ -73,11 +79,11 @@ LifecycleTimingTests holds credential/phone/startup operations at explicit suspe
 
 ## Production release gates
 
-The user's latest full run passed **99 unit + 27 UI = 126 declarations / 152 expanded runs**, including every lifecycle/queue case and both completed/cancelled sheet UI cases. The separate UI run also passed all 27 methods. No failures/skips or recorded runtime warnings. The agent inspected existing results without building or running tests. See [Verification.md](Verification.md) for paths, earlier failures and native-fixture console diagnostics. These results do not establish flawless navigation for a large production population.
+The user's latest full run passed **110 unit + 27 UI = 137 declarations / 173 expanded runs**, including the new ownership/metrics cases, existing lifecycle/queue cases and both completed/cancelled sheet UI cases. Focused simplification and diagnostics runs also passed. No failures/skips or recorded runtime warnings. The agent inspected completed results without building or running tests. See [Verification.md](Verification.md) for paths, earlier failures and native-fixture console diagnostics. These results do not establish flawless navigation for a large production population.
 
 Before integration/release, require:
 
-- Keep targeted native transition and full unit/UI execution as a regression gate with animations enabled and zero assertion failures. The current lifecycle revision passed on iPhone 17 / iOS 27.0 Simulator. Continue investigating the documented native-fixture console diagnostics.
+- Keep targeted native transition and full unit/UI execution as a regression gate with animations enabled and zero assertion failures. The current simplification revision passed on iPhone 17 / iOS 27.0 Simulator. Continue investigating the documented native-fixture console diagnostics.
 - The minimum supported iOS 17 runtime and current supported iOS versions; representative physical iPhones/iPads, both size classes, rotation and accessibility settings. The existing verified baseline covered iPhone 17 / iOS 27.0 Simulator only.
 - Repeated real completed/cancelled edge-back and sheet gestures, rapid alternating requests, foreground/background changes and scene disconnect during transitions. The controlled native tests complement real gestures; they do not replace device verification.
 - Validate the tested queue, reservation, overflow feedback, alert lifetime and arbitration defaults against the consuming application's protected flows and workloads. Route identity/restoration, capacity tuning and measured memory/latency still require application-specific decisions.

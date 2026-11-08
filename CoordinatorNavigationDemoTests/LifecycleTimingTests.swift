@@ -26,7 +26,7 @@ import UIKit
             #expect(!app.session.isAuthenticated)
             #expect(app.session.credentials.isEmpty)
             #expect(app.processor.active == nil)
-            #expect(app.children.isEmpty)
+            #expect(app.home == nil && app.redeem == nil && app.onboarding == nil)
             #expect(!app.demo.busy)
             #expect(await backend.metrics().createdCount == 0)
             #expect(await backend.metrics().loginCount == 0)
@@ -122,7 +122,7 @@ import UIKit
                 #expect(await backend.metrics().phoneAssociationCount == 1)
                 #expect(navigation.viewControllers == originalStack)
                 #expect(app.session.session == originalSession)
-                #expect(app.children.isEmpty)
+                #expect(app.home == nil && app.redeem == nil && app.onboarding == nil)
                 #expect(app.processor.active == nil)
                 #expect(!harness.composition.router.routes.contains(.home))
             }

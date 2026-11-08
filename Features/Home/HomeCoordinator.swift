@@ -1,7 +1,6 @@
 import SwiftUI
 
 @MainActor final class HomeCoordinator: Coordinator {
-    let id = UUID()
     private let router: any NavigationRouting
     private let session: SessionStore
     private let demo: DemoModel
@@ -133,7 +132,7 @@ struct PresentedCredentialView: View {
                 Spacer()
                 Button("Done", action: dismiss).accessibilityIdentifier("dismissSwiftUIModal")
             }.padding()
-            Text("Underlying stack: " + demo.routes.joined(separator: " → "))
+            Text("Underlying stack: " + demo.diagnostics.stackDescription)
                 .font(.caption).frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal).padding(.bottom, 8).accessibilityIdentifier("modalStack")
             List {
@@ -143,7 +142,7 @@ struct PresentedCredentialView: View {
                 }
                 Section("Alerts over this sheet") { AlertDemoButtons(show: showAlert) }
                 Section("Navigation underneath") {
-                    Text("Presented: " + (demo.presentedScreen ?? "none")).accessibilityIdentifier("modalDiagnostics")
+                    Text("Presented: " + (demo.diagnostics.presentedRoute?.rawValue ?? "none")).accessibilityIdentifier("modalDiagnostics")
                 }
             }
         }.background(Color(uiColor: .systemGroupedBackground))

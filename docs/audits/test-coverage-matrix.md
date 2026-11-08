@@ -2,9 +2,27 @@
 
 > **Historical coverage snapshot.** References to "current", source lines, test counts, failures and missing coverage below describe the audit baseline before subsequent alert/navigation hardening. Use [Verification.md](../Verification.md) for latest execution evidence, the [implementation status](implementation-status.md) for added work, and the [strict navigation review](navigation-strict-review-2026-11-07.md) for remaining validation gaps. Original evidence below remains unchanged.
 
+## Ownership/state supplement — 2026-11-08, focused/full user runs passed
+
+AUD-07–09 adds 11 declarations, bringing source to 110 unit + 27 UI = 137. **All 137 declarations / 173 expanded runs passed** in the user's 15:05 full run. Focused ownership cases passed 5 declarations / 13 expanded runs; diagnostic isolation cases passed 6 / 8. No failures/skips/recorded runtime warnings. The earlier 126/152 evidence belongs to baseline de12aab. Router algorithms, native XIBs and UI test identifiers are preserved.
+
+| Requirement | New suite/case | Boundary |
+|---|---|---|
+| Sole child ownership and release | SimplificationTests.redeemOwnerIsReleasedOnEveryExit; phoneOwnerIsReleasedAndOnlyCompletionInstallsHome | Weak release on Return/reset/stop and Phone Skip/Associate/reset/stop; retained Home stops/releases |
+| Authenticated transaction without hidden UI | authenticatedTransactionNeedsNoPresentationOwnerAndPreservesHomeAndModal | Held grant/error families; no Redeem owner, original Home/controllers/modal/session preserved, in-flight snapshot reflects redeeming/Home |
+| Obsolete action cannot affect next intent | obsoleteRecoveryActionsCannotAffectTheNextTransactionWithoutReset | Actually captured recovery callback replayed against held next transaction without reset |
+| Original context and duplicate retry eligibility | retryAfterLoginAndGrantFailurePreservesUnauthenticatedTransactionContext | Fail after login, hold retry after another login, replay Retry; one account/two logins, Phone then Home |
+| Navigation independent of diagnostics | DiagnosticsIsolationTests.heldMetricsCannotDelayProtectedCompletionOrAuthenticatedNavigation | Real attached navigation, held metric, both authentication contexts; Phone completion/next intent or original authenticated stack progresses |
+| Reset independent of metrics | resetDoesNotWaitForMetricsOrApplyItsObsoleteResult | Reset/seed/new grant complete while old read is held; obsolete counter is suppressed |
+| Publication reentrancy | stoppingDuringSessionPublicationCannotPushPhone | Synchronous session observer stops parent; no new Phone/Home navigation |
+| Coherent read-only snapshots | sessionOnlyMutationPublishesOneCoherentSnapshotWithoutNavigation | One value carries coherent fields; credentials/permissions refresh without route/controller changes |
+| Bounded/cancelled metric work | cancelledMetricsCannotPublishObsoleteValuesOrLoseANewRefresh; metricsRefreshesCoalesceWithoutSpawningConcurrentReads | Noncooperative stale response suppressed; new refresh survives; at most one read with coalesced follow-up |
+
+Every case above passed in focused and full user runs on iPhone 17 / iOS 27.0 Simulator. The source review/fix and execution ledger is in [navigation-simplification.md](../plans/navigation-simplification.md). OS/device and broader acceptance limits remain separate.
+
 ## Lifecycle timing supplement — 2026-11-08, focused/full user runs passed
 
-Baseline `981a91b` passed 91 unit + 27 UI declarations / 136 expanded runs. Current source adds eight native declarations, for 99 unit + 27 UI = 126. **All eight supplement declarations / 16 expanded runs passed**. The newest 10:42 full run passed **99/99 unit + 27/27 UI / 152 expanded runs**, zero failures/skips/recorded runtime warnings; separate 10:32 UI run passed 27/27. Queue lifetime and completed native-grabber sheet follow-ups passed. Shared gates release explicit stages; they do not infer completion from elapsed time. Full prior matrices below remain historical.
+Baseline `981a91b` passed 91 unit + 27 UI declarations / 136 expanded runs. The lifecycle phase added eight declarations, for 99 unit + 27 UI = 126. **All eight supplement declarations / 16 expanded runs passed**. That phase's 10:42 full run passed **99/99 unit + 27/27 UI / 152 expanded runs**, zero failures/skips/recorded runtime warnings; separate 10:32 UI run passed 27/27. Those cases passed again in the 15:05 simplification full run. Shared gates release explicit stages; they do not infer completion from elapsed time. Full prior matrices below remain historical.
 
 | Timing requirement | New LifecycleTimingTests declaration | Assertion / boundary |
 |---|---|---|

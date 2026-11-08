@@ -23,7 +23,7 @@ import UIKit
         #expect(app.flow == .authenticated)
         #expect(router.routes == [.home])
         #expect(!router.backBlocked)
-        #expect(app.children.count == 1)
+        #expect(app.home != nil && app.redeem == nil && app.onboarding == nil)
     }
     @Test func authenticatedStackIsPreservedAndUpdatesObserved() async {
         let (app, router, backend) = makeApp()
@@ -97,7 +97,7 @@ import UIKit
             if busy { app.stop() }
         }
         await app.reset(authenticated: true)
-        #expect(app.children.isEmpty)
+        #expect(app.home == nil && app.redeem == nil && app.onboarding == nil)
         #expect(!app.session.isAuthenticated)
         #expect(router.routes == [.welcome])
         withExtendedLifetime(observation) {}
@@ -109,7 +109,7 @@ import UIKit
         app.submit(code: "NEW-USER")
         await app.reset(authenticated: false)
         #expect(router.routes == [.welcome])
-        #expect(app.children.isEmpty)
+        #expect(app.home == nil && app.redeem == nil && app.onboarding == nil)
         #expect(!app.session.isAuthenticated)
     }
 }
@@ -215,11 +215,11 @@ import UIKit
         #expect(router.presentedRoute == .credentialSheet)
         #expect(router.presentedController?.modalPresentationStyle == .pageSheet)
         #expect(router.routes == [.home, .secondary])
-        #expect(app.demo.presentedScreen == "credentialSheet")
+        #expect(app.demo.diagnostics.presentedRoute?.rawValue == "credentialSheet")
         app.home?.dismissPresentedScreen()
         #expect(router.presentedRoute == nil)
         #expect(router.screens.map(\.controller) == controllers)
-        #expect(app.demo.presentedScreen == nil)
+        #expect(app.demo.diagnostics.presentedRoute?.rawValue == nil)
     }
     @Test func fullScreenUsesXIBAndHasDismissAction() async {
         let router = RouterSpy()

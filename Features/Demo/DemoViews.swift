@@ -1,5 +1,26 @@
 import SwiftUI
 
+/// A read-only projection; UIKit, the session and the intent processor remain owners.
+struct NavigationDiagnostics: Equatable {
+    let flow: AppFlow
+    let isAuthenticated: Bool
+    let routes: [Route]
+    let presentedRoute: PresentationRoute?
+    let credentialCount: Int
+    let permissions: [String]
+    let activeCoordinator: String
+    let pendingCount: Int
+    let backBlocked: Bool
+
+    var authentication: String { isAuthenticated ? "Authenticated" : "Unauthenticated" }
+    var currentFeature: String { presentedRoute?.rawValue ?? routes.last?.rawValue ?? "none" }
+    var stackDescription: String { routes.map(\.rawValue).joined(separator: " → ") }
+    static var empty: NavigationDiagnostics {
+        NavigationDiagnostics(flow: .launching, isAuthenticated: false, routes: [], presentedRoute: nil,
+            credentialCount: 0, permissions: [], activeCoordinator: "AppCoordinator", pendingCount: 0, backBlocked: false)
+    }
+}
+
 @MainActor final class DemoModel: ObservableObject {
     #if DEBUG
     let instanceID = UUID().uuidString
@@ -9,18 +30,49 @@ import SwiftUI
     @Published var alertStyle: AppAlertStyle = .uikit
     var showAlert: ((AppAlertStyle) -> Void)?
     @Published var busy = false
-    @Published var flow = "launching"
-    @Published var authentication = "Unauthenticated"
-    @Published var routes: [String] = []
-    @Published var presentedScreen: String?
-    @Published var credentialCount = 0
-    @Published var permissions: [String] = []
-    @Published var activeCoordinator = "AppCoordinator"
-    @Published var pendingCount = 0
-    @Published var backBlocked = false
-    @Published var loginCount = 0
+    @Published private(set) var diagnostics = NavigationDiagnostics.empty
+    @Published private(set) var loginCount = 0
+    private let readLoginCount: @Sendable () async -> Int
+    private var metricsTask: Task<Void, Never>?
+    private var metricsRequested = false
+    private var metricsGeneration = UUID()
     var inject: ((String) -> Void)?
     var reset: ((Bool) -> Void)?
+
+    init(readLoginCount: @escaping @Sendable () async -> Int = { 0 }) { self.readLoginCount = readLoginCount }
+    func updateDiagnostics(_ snapshot: NavigationDiagnostics) {
+        if diagnostics != snapshot { diagnostics = snapshot }
+    }
+    /// One read can run; further requests coalesce into one follow-up read.
+    @discardableResult func refreshMetrics() -> Task<Void, Never>? {
+        metricsRequested = true
+        startMetricsIfNeeded()
+        return metricsTask
+    }
+    /// Keeps a cancelled read joinable without making flow completion await it.
+    @discardableResult func cancelMetrics(resetCount: Bool = false) -> Task<Void, Never>? {
+        metricsGeneration = UUID()
+        metricsRequested = false
+        metricsTask?.cancel()
+        if resetCount, loginCount != 0 { loginCount = 0 }
+        return metricsTask
+    }
+    private func startMetricsIfNeeded() {
+        guard metricsRequested, metricsTask == nil else { return }
+        metricsRequested = false
+        let read = readLoginCount
+        let generation = metricsGeneration
+        metricsTask = Task { [weak self] in
+            let count = await read()
+            guard let self else { return }
+            self.metricsTask = nil
+            if !Task.isCancelled, self.metricsGeneration == generation, self.loginCount != count {
+                self.loginCount = count
+            }
+            self.startMetricsIfNeeded()
+        }
+    }
+    deinit { metricsTask?.cancel() }
 }
 struct WelcomeView: View {
     @ObservedObject var demo: DemoModel
@@ -63,16 +115,16 @@ struct DemoControls: View {
         }
         #if DEBUG
         Section("Diagnostics • observed state") {
-            LabeledContent("Flow", value: model.flow)
-            LabeledContent("Session", value: model.authentication)
-            LabeledContent("Current screen", value: model.presentedScreen ?? model.routes.last ?? "none")
-            LabeledContent("Presented screen", value: model.presentedScreen ?? "none")
-            Text("Stack: " + model.routes.joined(separator: " → ")).accessibilityIdentifier("stackDiagnostics")
-            LabeledContent("Credentials", value: "\(model.credentialCount)")
-            LabeledContent("Permissions", value: model.permissions.joined(separator: ", "))
-            LabeledContent("Coordinator", value: model.activeCoordinator)
-            LabeledContent("Pending links", value: "\(model.pendingCount)")
-            LabeledContent("Back blocked", value: model.backBlocked ? "Yes" : "No")
+            LabeledContent("Flow", value: model.diagnostics.flow.rawValue)
+            LabeledContent("Session", value: model.diagnostics.authentication)
+            LabeledContent("Current feature", value: model.diagnostics.currentFeature)
+            LabeledContent("Presented screen", value: model.diagnostics.presentedRoute?.rawValue ?? "none")
+            Text("Stack: " + model.diagnostics.stackDescription).accessibilityIdentifier("stackDiagnostics")
+            LabeledContent("Credentials", value: "\(model.diagnostics.credentialCount)")
+            LabeledContent("Permissions", value: model.diagnostics.permissions.joined(separator: ", "))
+            LabeledContent("Coordinator", value: model.diagnostics.activeCoordinator)
+            LabeledContent("Pending links", value: "\(model.diagnostics.pendingCount)")
+            LabeledContent("Back blocked", value: model.diagnostics.backBlocked ? "Yes" : "No")
             Text("Login requests: \(model.loginCount)").accessibilityIdentifier("loginCount")
         }
         #endif
@@ -91,12 +143,12 @@ struct DiagnosticsView: View {
                 #if DEBUG
                 Text("Instance: \(model.instanceID)").accessibilityIdentifier("instanceIdentity")
                 #endif
-                Text("Flow: \(model.flow) • \(model.authentication)")
-                Text("Current: \(model.presentedScreen ?? model.routes.last ?? "none")")
-                Text("Stack: " + model.routes.joined(separator: " → ")).accessibilityIdentifier("overlayStack")
-                Text("Credentials: \(model.credentialCount) • Permissions: \(model.permissions.joined(separator: ", "))")
-                Text("Coordinator: \(model.activeCoordinator)")
-                Text("Queued: \(model.pendingCount) • Back blocked: \(model.backBlocked ? "Yes" : "No")")
+                Text("Flow: \(model.diagnostics.flow.rawValue) • \(model.diagnostics.authentication)")
+                Text("Current feature: \(model.diagnostics.currentFeature)")
+                Text("Stack: " + model.diagnostics.stackDescription).accessibilityIdentifier("overlayStack")
+                Text("Credentials: \(model.diagnostics.credentialCount) • Permissions: \(model.diagnostics.permissions.joined(separator: ", "))")
+                Text("Coordinator: \(model.diagnostics.activeCoordinator)")
+                Text("Queued: \(model.diagnostics.pendingCount) • Back blocked: \(model.diagnostics.backBlocked ? "Yes" : "No")")
             }
         }.font(.caption2).padding(10).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }

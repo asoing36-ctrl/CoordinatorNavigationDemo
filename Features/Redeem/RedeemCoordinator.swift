@@ -6,15 +6,12 @@ import SwiftUI
     @Published var error: String?
 }
 @MainActor final class RedeemCoordinator: Coordinator {
-    let id = UUID()
     let model = RedeemViewModel()
     private let router: any NavigationRouting
-    private let showScreen: Bool
     var onRetry: (() -> Void)?
     var onClose: (() -> Void)?
-    init(router: any NavigationRouting, showScreen: Bool) { self.router = router; self.showScreen = showScreen }
+    init(router: any NavigationRouting) { self.router = router }
     func start() {
-        guard showScreen else { return }
         let view = RedeemView(model: model, retry: { [weak self] in self?.onRetry?() }, close: { [weak self] in self?.close() })
         router.push(UIHostingController(rootView: view), route: .redeem, policy: .blocked)
     }

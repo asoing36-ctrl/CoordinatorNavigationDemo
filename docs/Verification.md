@@ -1,6 +1,43 @@
 # Verification record
 
-## Current lifecycle revision — user UI/full Simulator runs passed (2026-11-08, 10:32 / 10:42)
+## Current ownership/state simplification — user focused/full runs passed (2026-11-08, 15:00 / 15:02 / 15:05)
+
+The user built and ran AUD-07–09 on `refactor/navigation-simplification`, based on merged/pushed `de12aab`. **110 native unit + 27 UI = 137 declarations passed**, with **173 expanded runs**, zero failures/skips and zero recorded runtime warnings. Focused SimplificationTests passed 5 declarations / 13 expanded runs; DiagnosticsIsolationTests passed 6 declarations / 8 expanded runs. Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The agent only inspected completed artifacts and ran no compiler, build, tests, Simulator or app.
+
+| User-owned bundle | Actual result |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.08_15-00-21-+0200.xcresult` | SimplificationTests: **5/5 declarations / 13 expanded runs passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_15-02-25-+0200.xcresult` | DiagnosticsIsolationTests: **6/6 declarations / 8 expanded runs passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_15-05-33-+0200.xcresult` | Full suite: **110/110 unit + 27/27 UI passed**, **173 expanded runs passed** |
+| Failures / skipped / recorded runtime warnings | **0 / 0 / 0** in all three bundles |
+
+All bundles are under `~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`. The full tree confirms every new parameter case, existing lifecycle suite and all UI workflows passed. This includes original Home/controller/modal identity, weak child release, held metrics across navigation/reset, cancelled/coalesced refreshes, coherent session-only snapshots, stop during publication, stale callbacks versus the next intent, and a held duplicate Retry with real backend login counts.
+
+Source changes remove the child registry/registry-only UUIDs, make typed properties the sole child owners, and separate a concrete redeem transaction/recovery phase from its optional screen coordinator. Authenticated redemption keeps Home and the native stack/modal, without constructing an invisible RedeemCoordinator. Recovery actions validate their transaction. The router implementation is unchanged.
+
+Navigation diagnostics is one typed read-only snapshot derived from actual owners, with session-only changes observed after Combine assignment. Login metrics is independent DemoModel work, bounded to one read plus one coalesced refresh request. Reset/stop cancel and invalidate it; navigation never awaits it. Existing debug/sheet consumers and cleanup helpers are updated. The current-feature label describes the stack/feature modal, not transient alerts.
+
+New SimplificationTests and DiagnosticsIsolationTests cover weak ownership exits, authenticated success/error identity preservation, obsolete recovery actions versus the next intent, partial-login retry, native navigation/queue/reset while metrics is held, stop during session publication, snapshot coherence, stale metrics and bounded refreshes. These cases were written before their corresponding implementation; the user-owned focused/full executions now provide passing evidence. No agent-owned RED/GREEN cycle is claimed. The portable subset remains 30 declarations and executed through the native target; no separate package rerun is claimed.
+
+Static project/plist/XML/outlet/source-membership checks passed with 36 Swift/XIB references and unchanged Swift 5.0/iOS 17.0 settings. Final review/findings are recorded in [the simplification plan](plans/navigation-simplification.md). Static checks and source review are not compilation/runtime evidence. The read-only review found an authenticated-admission snapshot gap, source-corrected with a settled-observer held test and transaction guard. Retry coverage now holds a logged-in retry before replaying its action, so cancellation timing cannot hide an extra login. Both review follow-ups passed in focused and full user runs.
+
+Keep SimplificationTests, DiagnosticsIsolationTests, LifecycleTimingTests and the complete scheme as regression gates. For a terminal run, replace DEVICE-UDID and use a result path that does not already exist:
+
+```sh
+xcodebuild test -project CoordinatorNavigationDemo.xcodeproj \
+  -scheme CoordinatorNavigationDemo \
+  -destination 'platform=iOS Simulator,id=DEVICE-UDID' \
+  -parallel-testing-enabled NO \
+  -only-testing:CoordinatorNavigationDemoTests/SimplificationTests \
+  -only-testing:CoordinatorNavigationDemoTests/DiagnosticsIsolationTests \
+  -only-testing:CoordinatorNavigationDemoTests/LifecycleTimingTests \
+  -resultBundlePath /private/tmp/CoordinatorSimplification.xcresult \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Remove the three `-only-testing` options and choose a fresh result path for a future full unit/UI run. Full-run console inspection found **16** locked-focus and **478** handler-drop entries in native unit output; UI output has **0** of either. There are **0** matching unsupported-hosting, publication-during-update, unbalanced-appearance or unfinished-navigation diagnostics. Their cause remains unestablished; no harmlessness or leak conclusion is inferred. Exported inspection data: `/private/tmp/coordinator-simplification-1505-diagnostics`. Only documentation changed after inspecting the results. The verified simplification, tests and evidence are committed together at the user's request. Prior OS/device/profiling and broader acceptance gates remain open.
+
+## Last verified lifecycle baseline — user UI/full Simulator runs passed (2026-11-08, 10:32 / 10:42)
 
 The user built and ran the final lifecycle revision and test follow-ups. **99 native unit + 27 UI = 126 declarations passed**, with **152 expanded runs**, zero failures/skips and zero recorded runtime warnings. The separate UI run also passed **27/27 methods**. Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The portable subset remains 30 declarations and ran through the native target; no separate package run is claimed.
 

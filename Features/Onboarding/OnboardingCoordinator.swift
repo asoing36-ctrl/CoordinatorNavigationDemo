@@ -7,7 +7,6 @@ import Combine
     @Published var status = "Phone association is optional. Associate or skip to continue."
 }
 @MainActor final class OnboardingCoordinator: Coordinator {
-    let id = UUID()
     let model = PhoneViewModel()
     private let router: any NavigationRouting
     private let repository: any CredentialRepository

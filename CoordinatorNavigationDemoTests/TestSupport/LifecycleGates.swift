@@ -46,9 +46,11 @@ import Foundation
     func joinPhone() async { await phone?.waitForOperation(); phone = nil }
     func finish() async {
         for app in apps { app.stop() }
+        let diagnostics = apps.compactMap { $0.demo.cancelMetrics() }
         for gate in gates { gate.release() }
         await joinPhone()
         for task in tasks { await task.value }
+        for task in diagnostics { await task.value }
         tasks.removeAll()
         for app in apps { await app.waitForOperation() }
         apps.removeAll()

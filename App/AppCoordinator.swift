@@ -1,11 +1,12 @@
 import SwiftUI
+import Combine
 
 @MainActor final class AppCoordinator: Coordinator {
-    let id = UUID()
     let session = SessionStore()
     let processor: DeepLinkProcessor
-    let demo = DemoModel()
-    private(set) var children: [UUID: any Coordinator] = [:]
+    let demo: DemoModel
+    private var sessionObservation: AnyCancellable?
+    private var diagnosticsUpdateScheduled = false
     private(set) var flow: AppFlow = .launching
     private(set) var redeem: RedeemCoordinator?
     private(set) var onboarding: OnboardingCoordinator?
@@ -21,8 +22,14 @@ import SwiftUI
     private var deferredIntents: PendingIntentBuffer
     private var deferredInvalidNotice = false
     private var deferredCapacityNotice = false
-    private var originalSession: UserSession?
-    private var activeCode: String?
+    private struct RedeemTransaction {
+        enum Phase { case running, awaitingRecovery }
+        let id = UUID()
+        let code: String
+        let originalSession: UserSession?
+        var phase: Phase = .running
+    }
+    private var transaction: RedeemTransaction?
     private var started = false
     private var stopped = false
 
@@ -31,7 +38,9 @@ import SwiftUI
         self.router = router
         let businessRepository = repository ?? backend
         self.repository = businessRepository
-        self.environment = environment ?? backend
+        let administration = environment ?? backend
+        self.environment = administration
+        demo = DemoModel(readLoginCount: { await administration.metrics().loginCount })
         deferredIntents = PendingIntentBuffer(maximumCount: maximumPendingIntents)
         processor = DeepLinkProcessor(maximumPendingIntents: maximumPendingIntents)
         useCase = RedeemCredentialUseCase(repository: businessRepository)
@@ -46,6 +55,7 @@ import SwiftUI
             guard let self, !self.resetting else { return }
             self.resetTask = Task { [weak self] in await self?.reset(authenticated: authenticated) }
         }
+        sessionObservation = session.objectWillChange.sink { [weak self] in self?.scheduleDiagnosticsRefresh() }
     }
     func start() {
         guard !started else { return }
@@ -94,75 +104,93 @@ import SwiftUI
         components.queryItems = [URLQueryItem(name: "code", value: code)]
         if let url = components.url { receive(url) }
     }
-    private func retain(_ coordinator: any Coordinator) { children[coordinator.id] = coordinator }
-    private func release(_ coordinator: (any Coordinator)?) {
-        guard let coordinator else { return }
-        coordinator.stop(); children.removeValue(forKey: coordinator.id)
+    private func stopChildren() {
+        redeem?.stop(); redeem = nil
+        onboarding?.stop(); onboarding = nil
+        home?.stop(); home = nil
     }
     private func handle(_ intent: AppIntent) {
-        guard case .redeemCredential(let code) = intent else { return }
-        originalSession = session.session // Preserve the original transaction context across retries.
-        activeCode = code
+        guard !stopped, case .redeemCredential(let code) = intent else { return }
+        let context = RedeemTransaction(code: code, originalSession: session.session)
+        transaction = context // Preserve pre-authentication context across retries.
         flow = .redeeming
         demo.status = "Redeeming credential…"
-        let coordinator = RedeemCoordinator(router: router, showScreen: originalSession == nil)
-        redeem = coordinator; retain(coordinator)
-        coordinator.onRetry = { [weak self] in self?.performRedeem() }
-        coordinator.onClose = { [weak self] in self?.closeFailedRedeem() }
-        coordinator.start()
+        guard !stopped, transaction?.id == context.id else { return }
+        if context.originalSession == nil {
+            let coordinator = RedeemCoordinator(router: router)
+            let transactionID = context.id
+            redeem = coordinator
+            coordinator.onRetry = { [weak self] in self?.retry(transactionID: transactionID) }
+            coordinator.onClose = { [weak self] in self?.closeFailedRedeem(transactionID: transactionID) }
+            coordinator.start()
+        }
+        refreshDiagnostics()
+        guard !stopped, transaction?.id == context.id else { return }
+        performRedeem()
+    }
+    private func retry(transactionID: UUID) {
+        guard !stopped, transaction?.id == transactionID, transaction?.phase == .awaitingRecovery else { return }
         performRedeem()
     }
     private func performRedeem() {
-        guard let code = activeCode, let redeem else { return }
+        guard !stopped, let context = transaction else { return }
         operation?.cancel()
-        redeem.model.loading = true; redeem.model.error = nil
-        let token = generation
+        transaction?.phase = .running
+        redeem?.model.loading = true; redeem?.model.error = nil
+        guard !stopped, transaction?.id == context.id else { return }
+        let token = context.id
         let useCase = useCase
-        let original = originalSession
+        let original = context.originalSession
         operation = Task { [weak self] in
             do {
-                let result = try await useCase.execute(code: code, session: original)
+                let result = try await useCase.execute(code: context.code, session: original)
                 try Task.checkCancellation()
-                guard let self, self.generation == token else { return }
+                guard let self, !self.stopped, self.transaction?.id == token else { return }
                 self.session.apply(result)
-                self.demo.loginCount = await self.environment.metrics().loginCount
-                guard self.generation == token, !Task.isCancelled else { return }
+                guard !self.stopped, self.transaction?.id == token, !Task.isCancelled else { return }
                 self.demo.status = result.authentication == .createdAccount ? "Account created" : (result.authentication == .loggedIn ? "Logged in" : "Credential added; session preserved")
-                if result.needsPhoneAssociation { self.beginOnboarding(result) }
-                else { self.finishAuthenticatedRedeem() }
+                guard !self.stopped, self.transaction?.id == token else { return }
+                if result.needsPhoneAssociation { self.beginOnboarding(result, transactionID: token) }
+                else { self.finishAuthenticatedRedeem(transactionID: token) }
+                if !self.stopped { self.demo.refreshMetrics() }
             } catch is CancellationError { } catch {
-                guard let self, self.generation == token, !Task.isCancelled else { return }
+                guard let self, !self.stopped, self.transaction?.id == token, !Task.isCancelled else { return }
+                self.transaction?.phase = .awaitingRecovery
                 self.redeem?.fail(error)
+                guard !self.stopped, self.transaction?.id == token else { return }
                 self.demo.status = error.localizedDescription
+                guard !self.stopped, self.transaction?.id == token else { return }
                 if original != nil {
                     // Keep the intent and its original session until an explicit alert action.
                     // The router defers display while inactive and presents over the visible modal/content.
                     let admission = self.router.showAlert(.redeemFailure(message: error.localizedDescription, style: self.demo.alertStyle)) { [weak self] action in
-                        guard let self, self.generation == token, !self.stopped else { return }
-                        if action == .retry { self.performRedeem() }
-                        else { self.finishAuthenticatedRedeem() }
+                        guard let self, !self.stopped, self.transaction?.id == token,
+                              self.transaction?.phase == .awaitingRecovery else { return }
+                        if action == .retry { self.retry(transactionID: token) }
+                        else { self.finishAuthenticatedRedeem(transactionID: token) }
                     }
                     if admission == .capacityExceeded || admission == .invalidActions {
                         // Rejected requests own no callback. Preserve session/stack
                         // and release this intent rather than strand the pipeline.
                         self.reportCapacityExceeded()
-                        self.finishAuthenticatedRedeem()
+                        self.finishAuthenticatedRedeem(transactionID: token)
                     }
                 }
                 self.refreshDiagnostics()
             }
         }
     }
-    private func beginOnboarding(_ result: RedeemResult) {
+    private func beginOnboarding(_ result: RedeemResult, transactionID: UUID) {
+        guard !stopped, transaction?.id == transactionID else { return }
         // Keep Redeem's hosting controller underneath the genuinely pushed XIB screen.
-        release(redeem); redeem = nil
+        redeem?.stop(); redeem = nil
         let coordinator = OnboardingCoordinator(router: router, repository: repository, session: result.session, authentication: result.authentication)
-        onboarding = coordinator; retain(coordinator)
-        let token = generation
+        onboarding = coordinator
         coordinator.onFinish = { [weak self] in
-            guard let self, self.generation == token else { return }
-            self.release(self.onboarding); self.onboarding = nil
+            guard let self, !self.stopped, self.transaction?.id == transactionID else { return }
+            self.onboarding?.stop(); self.onboarding = nil
             self.installHome()
+            guard !self.stopped, self.transaction?.id == transactionID else { return }
             self.clearTransaction()
             self.processor.finish()
         }
@@ -171,28 +199,32 @@ import SwiftUI
         refreshDiagnostics()
     }
     private func installHome() {
-        release(home)
+        guard !stopped else { return }
+        home?.stop()
         let coordinator = HomeCoordinator(router: router, session: session, demo: demo)
-        home = coordinator; retain(coordinator)
+        home = coordinator
         flow = .authenticated
         coordinator.start()
         refreshDiagnostics()
     }
-    private func finishAuthenticatedRedeem() {
-        release(redeem); redeem = nil
+    private func finishAuthenticatedRedeem(transactionID: UUID) {
+        guard !stopped, transaction?.id == transactionID else { return }
+        redeem?.stop(); redeem = nil
         flow = .authenticated
         // Existing Home/secondary/detail controller identities are deliberately preserved.
         clearTransaction()
         refreshDiagnostics()
-        processor.finish()
+        if !stopped { processor.finish() }
     }
-    private func closeFailedRedeem() {
-        release(redeem); redeem = nil
+    private func closeFailedRedeem(transactionID: UUID) {
+        guard !stopped, transaction?.id == transactionID, transaction?.phase == .awaitingRecovery,
+              transaction?.originalSession == nil else { return }
+        redeem?.stop(); redeem = nil
         clearTransaction()
         showWelcome()
-        processor.finish()
+        if !stopped { processor.finish() }
     }
-    private func clearTransaction() { activeCode = nil; originalSession = nil }
+    private func clearTransaction() { transaction = nil }
     // Reset is an administrative transaction: caller cancellation does not leave
     // half-reset state. Lifecycle stop invalidates its generation at every await.
     func reset(authenticated: Bool) async {
@@ -203,12 +235,12 @@ import SwiftUI
         router.cancelAlerts()
         generation = UUID()
         let resetGeneration = generation
+        demo.cancelMetrics(resetCount: true)
         demo.busy = true
         let oldOperation = operation
         let oldOnboarding = onboarding
         operation?.cancel(); operation = nil
-        for coordinator in children.values { coordinator.stop() }
-        children.removeAll(); redeem = nil; onboarding = nil; home = nil
+        stopChildren()
         processor.reset(); clearTransaction()
         // Cancellation is awaited before resetting the actor, preventing obsolete backend commits.
         await oldOperation?.value
@@ -228,7 +260,7 @@ import SwiftUI
             session.restore(session: nil)
             showWelcome()
         }
-        demo.loginCount = 0; demo.status = "Mock environment reset"
+        demo.status = "Mock environment reset"
         demo.busy = false
         let intents = deferredIntents.takeAll()
         let invalidNotice = deferredInvalidNotice
@@ -244,29 +276,37 @@ import SwiftUI
         // A completion may synchronously begin the next queued transaction.
         while let current = operation {
             await current.value
-            if processor.active == nil || flow == .phoneAssociation || redeem?.model.error != nil { break }
+            if processor.active == nil || flow == .phoneAssociation || transaction?.phase == .awaitingRecovery { break }
             await Task.yield()
         }
     }
+    private func scheduleDiagnosticsRefresh() {
+        guard !stopped, !diagnosticsUpdateScheduled else { return }
+        diagnosticsUpdateScheduled = true
+        // Combine publishes before assignment. Read after the whole session mutation.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.diagnosticsUpdateScheduled = false
+            if !self.stopped { self.refreshDiagnostics() }
+        }
+    }
     private func refreshDiagnostics() {
-        demo.flow = flow.rawValue
-        demo.authentication = session.isAuthenticated ? "Authenticated" : "Unauthenticated"
-        demo.routes = router.routes.map(\.rawValue)
-        demo.presentedScreen = router.presentedRoute?.rawValue
-        demo.credentialCount = session.credentials.count
-        demo.permissions = session.permissions.sorted()
-        demo.activeCoordinator = onboarding != nil ? "OnboardingCoordinator" : (redeem != nil ? "RedeemCoordinator" : (home != nil ? "HomeCoordinator" : "AppCoordinator"))
-        demo.pendingCount = processor.pendingCount
-        demo.backBlocked = router.backBlocked
+        demo.updateDiagnostics(NavigationDiagnostics(flow: flow, isAuthenticated: session.isAuthenticated,
+            routes: router.routes, presentedRoute: router.presentedRoute,
+            credentialCount: session.credentials.count, permissions: session.permissions.sorted(),
+            activeCoordinator: onboarding != nil ? "OnboardingCoordinator" :
+                (redeem != nil ? "RedeemCoordinator" : (home != nil ? "HomeCoordinator" : "AppCoordinator")),
+            pendingCount: processor.pendingCount, backBlocked: router.backBlocked))
     }
     func stop() {
         stopped = true
+        demo.cancelMetrics()
         router.cancelPendingNavigation()
         router.cancelAlerts()
         resetting = false; deferredIntents.removeAll(); deferredInvalidNotice = false; deferredCapacityNotice = false
         generation = UUID(); operation?.cancel(); resetTask?.cancel()
-        for coordinator in children.values { coordinator.stop() }
-        children.removeAll(); redeem = nil; onboarding = nil; home = nil
+        stopChildren()
+        clearTransaction()
         processor.reset()
     }
     deinit { operation?.cancel(); resetTask?.cancel() }
