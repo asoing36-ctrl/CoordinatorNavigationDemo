@@ -22,7 +22,9 @@ import SwiftUI
             presentUIKit: { [weak self] in self?.presentUIKit() })), route: .secondary, policy: .allowed)
     }
     func showDetails() {
-        router.push(UIHostingController(rootView: CredentialDetailsView(session: session, lab: { [weak self] in self?.showLabDetail() }, showAlert: { [weak self] in self?.showAlert($0) })), route: .details, policy: .allowed)
+        router.push(UIHostingController(rootView: CredentialDetailsView(session: session,
+            lab: { [weak self] in self?.showLabDetail() }, showAlert: { [weak self] in self?.showAlert($0) },
+            showNotice: { [weak self] in self?.showNotice($0) })), route: .details, policy: .allowed)
     }
     func showLab() { showUIKit(route: .lab) }
     func showLabDetail() { showUIKit(route: .labDetail) }
@@ -30,7 +32,8 @@ import SwiftUI
         let controller = NavigationLabViewController(openSwiftUI: { [weak self] in self?.showDetails() },
             openUIKit: { [weak self] in self?.showLabDetail() },
             presentSwiftUI: { [weak self] in self?.presentSwiftUI() },
-            showAlert: { [weak self] style in self?.showAlert(style) })
+            showAlert: { [weak self] style in self?.showAlert(style) },
+            showNotice: { [weak self] in self?.showNotice($0) })
         controller.title = route == .lab ? "UIKit Lab" : "UIKit Detail"
         router.push(controller, route: route, policy: .allowed)
     }
@@ -57,11 +60,13 @@ import SwiftUI
             self?.dismissPresentedScreen()
             self?.presentSwiftUI()
         }, dismiss: { [weak self] in self?.dismissPresentedScreen() },
-           showAlert: { [weak self] style in self?.showAlert(style) })
+           showAlert: { [weak self] style in self?.showAlert(style) },
+           showNotice: { [weak self] in self?.showNotice($0) })
         controller.modalPresentationStyle = .fullScreen
         router.present(controller, route: .uikitFullScreen)
     }
     func showAlert(_ style: AppAlertStyle) { router.showAlert(.demo(style: style), completion: { _ in }) }
+    func showNotice(_ request: AppAlertRequest) { router.showAlert(request, completion: { _ in }) }
     func dismissPresentedScreen() { router.dismiss() }
     func stop() {}
 }
@@ -140,7 +145,7 @@ struct PresentedCredentialView: View {
                     Text("Presented with UIKit, rendered with SwiftUI. Drag down or tap Done to return.")
                     CredentialSummary(session: session)
                 }
-                Section("Alerts over this sheet") { AlertDemoButtons(show: showAlert) }
+                Section("Alerts over this sheet") { AlertDemoButtons(show: showAlert, showNotice: { demo.showNotice?($0) }) }
                 Section("Navigation underneath") {
                     Text("Presented: " + (demo.diagnostics.presentedRoute?.rawValue ?? "none")).accessibilityIdentifier("modalDiagnostics")
                 }
@@ -162,11 +167,12 @@ struct CredentialDetailsView: View {
     @ObservedObject var session: SessionStore
     let lab: () -> Void
     let showAlert: (AppAlertStyle) -> Void
+    let showNotice: (AppAlertRequest) -> Void
     var body: some View {
         List {
             CredentialSummary(session: session)
             Button("Open UIKit detail", action: lab).accessibilityIdentifier("openUIKitDetail")
-            Section("Alerts") { AlertDemoButtons(show: showAlert) }
+            Section("Alerts") { AlertDemoButtons(show: showAlert, showNotice: showNotice) }
         }.navigationTitle("Credential Details").accessibilityIdentifier("detailsScreen")
     }
 }

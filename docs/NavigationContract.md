@@ -1,5 +1,13 @@
 # Navigation contract and production validation
 
+The new [timed notices](TimedNotices.md) feature preserves one authoritative
+navigation controller. Modal timers use owned cleanup; a snackbar is a scene-bound
+non-key overlay window with no routes/stack. Navigation continues under banners,
+and recovery modals pause them. All 131 unit declarations passed, then all 37 UI methods passed after the test-only
+recovery tap correction, on iPhone 17 / iOS 27.0 Simulator. Those are separate
+user runs covering 168 declarations / 268 cases. Passing AUD-04 evidence below
+belongs to baseline `e07e6f5`; no single post-correction full run is claimed.
+
 The [AUD-04 error recovery matrix](plans/error-recovery-matrix.md) passed focused
 and full user runs: **148 declarations / 237 expanded runs**, zero failures/skips/
 recorded runtime warnings on iPhone 17 / iOS 27.0 Simulator. All 58 new component
@@ -55,7 +63,7 @@ Visible nonanimated root replacements also own the navigation lifecycle. If the 
 
 Navigation and presentation each own a completion flag. One dimension's callback cannot release the other's active transition. Stack changes beneath an existing modal are nonanimated; the router does not wait for an invisible navigation animation. User-driven completed/cancelled pops and adaptive modal dismissal use their UIKit lifecycle callbacks.
 
-An accepted root replacement invalidates obsolete waiting navigation and flow alerts. Global notices remain owned or queued. It does not interrupt an active UIKit animation. With an inactive scene and a visible feature modal, dismissal/replacement waits for activation. With an active global notice, replacement additionally waits for its acknowledgment or explicit administrative cancellation. Stop/reset invalidates waiting navigation before cancelling every alert scope.
+An accepted root replacement invalidates obsolete waiting navigation and flow alerts. Global notices remain owned or queued. It does not interrupt an active UIKit animation. With an inactive scene and a visible feature modal, dismissal/replacement waits for activation. With an active global modal notice, replacement additionally waits for its acknowledgment, configured expiry or explicit administrative cancellation. A global snackbar does not hold replacement. Stop/reset invalidates waiting navigation before cancelling every alert scope.
 
 ## Capacity, fairness and alert scope
 

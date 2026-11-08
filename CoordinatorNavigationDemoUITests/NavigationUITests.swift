@@ -290,6 +290,90 @@ import XCTest
         verifyRecovery(destination: .fullScreen, style: "SwiftUI", code: "NETWORK-FAIL", retry: true)
     }
 
+    func testTimedAlertsFromSwiftUIAndXIBReleaseNavigation() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("showTimedUIKitAlert")
+        assertTimedAlertExpires("Timed UIKit Alert")
+        scrollHomeToTop()
+        findAndTap("openUIKit")
+        XCTAssertTrue(app.navigationBars["UIKit Lab"].waitForExistence(timeout: 5))
+        findAndTap("showTimedSwiftUIAlert")
+        assertTimedAlertExpires("Timed SwiftUI Alert")
+        app.navigationBars.buttons["Home"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("showUIKitAlert")
+        acknowledgeAlert("UIKit Alert")
+    }
+    func testPersistentSnackbarAllowsBackAndUIKitModal() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("openSecondary")
+        findAndTap("showPersistentSnackbar")
+        XCTAssertTrue(app.staticTexts["snackbarTitle"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["Home"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        // Start scrolls above the banner: its visible rectangle intentionally
+        // accepts touches, while the rest of the application remains usable.
+        let presentation = app.buttons["presentUIKit"]
+        for _ in 0..<6 {
+            if presentation.isHittable { break }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)))
+        }
+        XCTAssertTrue(presentation.isHittable)
+        presentation.tap()
+        XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["snackbarTitle"].exists)
+        app.buttons["dismissSnackbar"].tap()
+        XCTAssertTrue(app.staticTexts["snackbarTitle"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["dismissUIKitModal"].isHittable)
+        app.buttons["dismissUIKitModal"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+    }
+    func testTimedSnackbarExpiresAboveSwiftUISheetWithoutDismissingIt() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("presentSwiftUI")
+        XCTAssertTrue(app.buttons["dismissSwiftUIModal"].waitForExistence(timeout: 5))
+        findAndTap("showTimedSnackbar")
+        let title = app.staticTexts["snackbarTitle"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertTrue(title.waitForNonExistence(timeout: 7))
+        XCTAssertEqual(app.staticTexts["modalStack"].label, "Underlying stack: home")
+        XCTAssertTrue(app.buttons["dismissSwiftUIModal"].isHittable)
+        app.buttons["dismissSwiftUIModal"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+    }
+    func testTimedAlertAboveUIKitModalPreservesModalAndNextPush() {
+        launch(["--authenticated"])
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+        findAndTap("presentUIKit")
+        XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
+        findAndTap("showTimedUIKitAlert")
+        assertTimedAlertExpires("Timed UIKit Alert")
+        XCTAssertTrue(app.buttons["dismissUIKitModal"].exists)
+        for _ in 0..<6 {
+            if app.buttons["labOpenSwiftUI"].isHittable { break }
+            app.swipeDown()
+        }
+        findAndTap("labOpenSwiftUI")
+        XCTAssertTrue(app.navigationBars["Credential Details"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["Home"].tap()
+        XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
+    }
+    private func assertTimedAlertExpires(_ title: String) {
+        let alert = app.alerts[title]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.waitForNonExistence(timeout: 7))
+    }
+    private func scrollHomeToTop() {
+        for _ in 0..<6 {
+            if app.buttons["openSecondary"].isHittable { break }
+            app.swipeDown()
+        }
+    }
+
     private enum RecoveryScreen {
         case home, secondary, details, xib, sheet, fullScreen
         var openingControl: String? {
@@ -379,11 +463,7 @@ import XCTest
         app.buttons["toggleDiagnostics"].tap()
         assertLoginRequests(0)
         // A later modal must still be possible after recovery cleanup.
-        for _ in 0..<6 {
-            if app.buttons["presentSwiftUI"].isHittable { break }
-            app.swipeDown()
-        }
-        findAndTap("presentSwiftUI")
+        tapFullyVisibleHomeButton("presentSwiftUI")
         XCTAssertTrue(app.buttons["dismissSwiftUIModal"].waitForExistence(timeout: 5))
         app.buttons["dismissSwiftUIModal"].tap()
         XCTAssertTrue(app.navigationBars["Home"].waitForExistence(timeout: 5))
@@ -517,6 +597,33 @@ import XCTest
         findAndTap("showUIKitAlert")
         acknowledgeAlert("UIKit Alert")
         XCTAssertTrue(app.navigationBars["Home"].exists)
+    }
+    private func tapFullyVisibleHomeButton(_ identifier: String) {
+        let button = app.buttons[identifier]
+        for _ in 0..<6 {
+            guard button.exists else { app.swipeDown(); continue }
+            let application = app.frame
+            let top = max(application.minY, app.navigationBars["Home"].frame.maxY) + 24
+            // Keep the whole row below navigation chrome and above the bottom
+            // diagnostics control. isHittable alone can accept a clipped row.
+            let viewport = CGRect(x: application.minX, y: top, width: application.width,
+                                  height: max(0, application.maxY - 112 - top))
+            let frame = button.frame
+            if frame.width > 0, frame.height > 0, viewport.contains(frame), button.isHittable {
+                let geometry = XCTAttachment(string: "Button: \(frame); viewport: \(viewport); tap: (\(frame.midX), \(frame.midY))")
+                geometry.name = "Recovery presentation tap geometry"
+                geometry.lifetime = .deleteOnSuccess
+                add(geometry)
+                // The failing recordings used tap()'s synthesized hit point in
+                // the status bar. Use the validated row center in app coordinates.
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                    .withOffset(CGVector(dx: frame.midX - application.minX, dy: frame.midY - application.minY)).tap()
+                return
+            }
+            if frame.minY < viewport.minY { app.swipeDown() }
+            else { app.swipeUp() }
+        }
+        XCTFail("Home button did not become fully visible: \(identifier)")
     }
     func testAlertCancelDeliversNextErrorAndPreservesNavigation() {
         launch(["--authenticated"])

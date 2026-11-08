@@ -5,7 +5,8 @@ enum AppAlertStyle: String, CaseIterable, Sendable {
     case swiftUI
 }
 enum AppAlertScope: Equatable, Sendable { case flow, global }
-enum AlertAdmission: Equatable, Sendable { case accepted, duplicate, invalidActions, capacityExceeded }
+enum NoticePresentation: Equatable, Sendable { case alert, snackbar }
+enum AlertAdmission: Equatable, Sendable { case accepted, duplicate, invalidActions, invalidConfiguration, capacityExceeded }
 
 enum AppAlertAction: String, Hashable, Sendable {
     case ok
@@ -30,6 +31,9 @@ struct AppAlertRequest: Identifiable, Equatable, Sendable {
     let message: String
     let actions: [AppAlertAction]
     let scope: AppAlertScope
+    let presentation: NoticePresentation
+    /// Foreground visible time. nil requires explicit user dismissal.
+    let dismissAfter: Duration?
 
     init(
         id: UUID = UUID(),
@@ -38,7 +42,9 @@ struct AppAlertRequest: Identifiable, Equatable, Sendable {
         title: String,
         message: String,
         actions: [AppAlertAction] = [.ok],
-        scope: AppAlertScope = .flow
+        scope: AppAlertScope = .flow,
+        presentation: NoticePresentation = .alert,
+        dismissAfter: Duration? = nil
     ) {
         self.id = id
         self.key = key
@@ -47,6 +53,30 @@ struct AppAlertRequest: Identifiable, Equatable, Sendable {
         self.message = message
         self.actions = actions
         self.scope = scope
+        self.presentation = presentation
+        self.dismissAfter = dismissAfter
+    }
+
+    var hasValidConfiguration: Bool {
+        let informational = scope == .global && actions == [.ok]
+        if let dismissAfter {
+            guard informational, dismissAfter > .zero, dismissAfter <= .seconds(86_400) else { return false }
+        }
+        return presentation != .snackbar || informational
+    }
+
+    static func timedDemo(style: AppAlertStyle) -> AppAlertRequest {
+        AppAlertRequest(key: "timed-demo-\(style.rawValue)", style: style,
+            title: style == .uikit ? "Timed UIKit Alert" : "Timed SwiftUI Alert",
+            message: "This informational alert closes after four foreground seconds.",
+            scope: .global, dismissAfter: .seconds(4))
+    }
+
+    static func snackbarDemo(timed: Bool) -> AppAlertRequest {
+        AppAlertRequest(key: timed ? "timed-snackbar" : "manual-snackbar", style: .uikit,
+            title: timed ? "Timed snackbar" : "Persistent snackbar",
+            message: timed ? "Navigation stays available. This message closes automatically." : "Navigate normally, then tap Dismiss when finished.",
+            scope: .global, presentation: .snackbar, dismissAfter: timed ? .seconds(4) : nil)
     }
 
     static func demo(style: AppAlertStyle) -> AppAlertRequest {
@@ -100,6 +130,7 @@ final class AppAlertQueue {
         guard !request.actions.isEmpty,
               Set(request.actions).count == request.actions.count,
               request.scope != .global || request.actions == [.ok] else { return .invalidActions }
+        guard request.hasValidConfiguration else { return .invalidConfiguration }
         let duplicate: (Entry) -> Bool = { $0.request.key == request.key && $0.request.scope == request.scope }
         guard active.map(duplicate) != true, !pending.contains(where: duplicate) else { return .duplicate }
         let limit = maximumPendingRequests - (request.scope == .global ? 1 : 0)

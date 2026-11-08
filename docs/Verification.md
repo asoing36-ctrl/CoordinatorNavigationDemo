@@ -1,6 +1,173 @@
 # Verification record
 
-## Current AUD-04 revision — focused and full user runs passed (2026-11-08, 20:00 / 20:02 / 20:18)
+## Current timed-notice revision — unit and corrected UI suites passed in separate user runs (2026-11-08)
+
+The latest completed user bundle confirms **all 37 UI tests passed**, including
+all six recovery workflows and the four new timed/manual-notice workflows. The
+preceding full run passed **all 131 unit declarations / 231 expanded cases**.
+After that run, only the recovery UI helper and documentation changed; production
+and unit-test source is unchanged. Coverage across these separate runs is **168
+declarations / 268 expanded cases**. **No single post-correction full-scheme run
+is claimed.**
+
+| User-owned bundle | Actual evidence |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.08_21-12-06-+0200.xcresult` | NoticeTimerTests: **8/8 declarations / 10 expanded cases passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_21-13-14-+0200.xcresult` | TransientNoticeTests: **8/8 declarations / 17 expanded cases passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_21-14-20-+0200.xcresult` | Full scheme before the UI-helper correction: **131/131 unit passed**; UI **33 passed / 4 failed of 37** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_21-46-44-+0200.xcresult` | Corrected UI suite: **37/37 methods passed**, zero failures/skips/recorded runtime warnings |
+
+All bundles are under
+`~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`.
+Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The full result tree confirms
+all four earlier failed recovery methods passed after the test-only visible-row /
+coordinate-center correction. The user built and executed the native tests; the
+agent inspected completed result bundles and static source/configuration checks.
+Console diagnostics were not analyzed in this follow-up.
+
+Validated behavior includes both modal renderers, automatic and explicit dismissal,
+foreground remaining-time pause/resume, obsolete-timer/action suppression, bounded
+snackbar FIFO/deduplication, non-key/touch-through window ownership, navigation and
+feature-modal preservation, protected Phone completion, and reset/stop cleanup.
+The recovery correction does not change production navigation or weaken assertions.
+
+Documentation, source and test corrections are included together at the user's
+request to commit and merge locally into main. The intended merge is a fast-forward
+of the same source tree; no additional runtime execution or remote push is claimed.
+Actual OS suspension, native-button auto-dismissal/reset overlap, minimum/current
+OS, physical-device, VoiceOver, keyboard/rotation and long-session/gesture profiling
+remain separate release gates. Earlier failure and environment records below are
+historical and retained for traceability.
+
+## Earlier timed-notice runs — four recovery tap failures before the passing UI rerun (2026-11-08, 21:12 / 21:13 / 21:14)
+
+Inspected completed user-owned bundles on iPhone 17 / iOS 27.0 Simulator, arm64:
+
+| Bundle | Actual result before the tap-helper correction |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.08_21-12-06-+0200.xcresult` | NoticeTimerTests: **8 declarations / 10 expanded cases passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_21-13-14-+0200.xcresult` | TransientNoticeTests: **8 declarations / 17 expanded cases passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_21-14-20-+0200.xcresult` | Full scheme: **164 passed / 4 failed of 168 declarations**, **264 passed / 4 failed of 268 expanded runs** |
+| Native unit tests in full run | **131/131 declarations / 231 expanded cases passed** |
+| UI in full run | **33 passed / 4 failed of 37 methods**; all four new timed/snackbar UI methods passed |
+| Skipped / recorded runtime warnings | **0 / 0** in all three bundles; console diagnostics not analyzed in this follow-up |
+
+Bundles are under
+`~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`.
+These results establish native compilation and execution in the user's environment,
+including both renderers, manual/expiry races, remaining foreground time,
+non-key/touch-through snackbar windows, queue bounds and protected Phone flow.
+The full revision is not yet all green.
+
+The four failures are existing recovery methods (original failure line 471):
+`testRecoveryFromHomeWithUIKitInvalidAlert`,
+`testRecoveryFromDetailsWithUIKitNetworkRetry`,
+`testRecoveryAboveSwiftUISheetWithUIKitExpiredAlert`, and
+`testRecoveryAboveUIKitFullScreenWithSwiftUINetworkRetry`.
+All reached the final attempt to present a new sheet, after their recovery,
+credentials/permissions, session/login, app identity and stack assertions passed.
+The other two recovery workflows passed.
+
+Exported synthesized final touch-down coordinates:
+
+| Workflow | Actual tap (x, y) |
+|---|---|
+| Home / INVALID | (17.0, 55.67) |
+| Details / NETWORK-FAIL | (17.0, 56.33) |
+| Sheet / EXPIRED | (53.0, 58.47) |
+| Full screen / NETWORK-FAIL | (17.0, 57.0) |
+
+All are in status-bar chrome, despite the helper accepting `isHittable`. The Home
+failure's final hierarchy shows `presentSwiftUI` at `{16, 688, 370, 52}`, Home
+still present and no sheet. The intended button tap was not delivered. Exported
+artifacts are in `/private/tmp/coordinator-notices-home-2114` and the corresponding
+`coordinator-notices-{details,sheet,fullScreen}-events-2114` directories.
+
+A narrow **test-only** correction replaces that final scroll/tap with
+`tapFullyVisibleHomeButton`: require the entire row inside content bounds below
+navigation chrome and above bottom diagnostics, scroll in the needed direction,
+then send one real coordinate tap at its measured center. A safe geometry attachment
+is retained on failure. Existing sheet-appearance/dismissal assertions, five-second
+timeout, six-iteration scroll bound and business assertions are unchanged. There
+is no retry tap, fallback dismissal or production navigation change.
+
+The corrected UI source passed standalone Swift 5 / iOS 17 SDK typechecking with
+complete concurrency and the Xcode XCTest Swift overlay import path (exit 0, no
+diagnostics). This is not UI execution or a full app build. The first exploratory
+command omitted that overlay path and could not resolve XCTest assertions; adding
+Xcode's Developer/usr/lib include path corrected the command, not production code.
+The helper change **has not run** in Simulator. The user retains test execution.
+
+Rerun all six `NavigationUITests.testRecovery…` methods, then the complete scheme.
+Commands below can be used with the corresponding test filters. No full passing
+claim or commit is made for this correction; OS/device/accessibility gates remain.
+
+## Initial timed/manual notice implementation — before user native execution
+
+Branch `feat/timed-alerts-snackbars`, baseline `e07e6f5`. The user confirmed timed
+and user-dismissed notices and will run remaining tests. No new native build,
+Simulator or UI execution is claimed. Last full native evidence remains **148
+declarations / 237 expanded runs** below, before this feature.
+
+| Check | Actual result / limitation |
+|---|---|
+| Initial portable RED | Failed at missing NoticeClock, before timer/request implementation; `/private/tmp/coordinator-timed-notices-red.log` |
+| Initial portable GREEN | **38 declarations across 5 suites passed**, exit 0; includes all 8 NoticeTimerTests declarations (10 expanded cases); `/private/tmp/coordinator-timed-notices-green.log` |
+| Partial UIKit source typecheck | AppAlert.swift, ForegroundNoticeTimer.swift and SnackbarPresenter.swift passed arm64 iOS 17 Simulator SDK typechecking, Swift 5 / complete concurrency, no diagnostics; `/private/tmp/coordinator-notices-uikit-typecheck.log` |
+| Native app, attached-window and UI execution | Not run for this feature; user will execute |
+
+The source typecheck is **not an application build** and excludes the SwiftUI
+renderer, router integration and test targets. It caught and corrected the Swift
+name of UIWindow.canBecomeKey and UIKit cleanup isolation before this handoff.
+The portable GREEN predates the later native/UI integration. No full green claim
+is made for the working tree. Source inventory: **131 unit + 37 UI = 168
+declarations**, expected **268 expanded runs**; these are inventory counts.
+
+New coverage: NoticeTimerTests (8 declarations / 10 cases), TransientNoticeTests
+(8 declarations / 17 cases), four UI workflows. The native cases use the real
+router, renderers, XIB controllers, scene window and injected monotonic clock.
+They cover timer start after appearance, foreground remaining time, manual/expiry
+races, no synthesized business action, feature modal/stack preservation, non-key
+touch passthrough, bounded FIFO/deduplication, reset/stop and protected Phone.
+
+Run NoticeTimerTests and TransientNoticeTests first, followed by the four new UI
+methods and the full scheme. For a terminal run, replace DEVICE-UDID and choose
+result paths that do not exist:
+
+```sh
+xcodebuild test -project CoordinatorNavigationDemo.xcodeproj \
+  -scheme CoordinatorNavigationDemo \
+  -destination 'platform=iOS Simulator,id=DEVICE-UDID' \
+  -parallel-testing-enabled NO \
+  -only-testing:CoordinatorNavigationDemoTests/NoticeTimerTests \
+  -only-testing:CoordinatorNavigationDemoTests/TransientNoticeTests \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testTimedAlertsFromSwiftUIAndXIBReleaseNavigation \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testPersistentSnackbarAllowsBackAndUIKitModal \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testTimedSnackbarExpiresAboveSwiftUISheetWithoutDismissingIt \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testTimedAlertAboveUIKitModalPreservesModalAndNextPush \
+  -resultBundlePath /private/tmp/CoordinatorTimedNotices.xcresult \
+  CODE_SIGNING_ALLOWED=NO
+
+xcodebuild test -project CoordinatorNavigationDemo.xcodeproj \
+  -scheme CoordinatorNavigationDemo \
+  -destination 'platform=iOS Simulator,id=DEVICE-UDID' \
+  -parallel-testing-enabled NO \
+  -resultBundlePath /private/tmp/CoordinatorTimedNoticesFull.xcresult \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+See [TimedNotices.md](TimedNotices.md) for request examples, four-second demo
+controls, lifetime, scope/admission rules and user-action versus expiry semantics.
+Static project/plist/XIB/source-membership and Markdown/whitespace checks passed;
+41 Swift/XIB references resolve and both XIBs' outlets/actions match controller
+symbols. One fresh-context source reviewer found no Critical/Important issue.
+The optional appearance-flag change was deferred pending real hide/show evidence;
+see [the plan/review ledger](plans/timed-notices.md).
+
+Minimum/current OS, physical-device, VoiceOver, keyboard/rotation and real OS
+suspension tests remain separate validation gates. No changes were committed.
+
+## Verified AUD-04 baseline — focused and full user runs passed (2026-11-08, 20:00 / 20:02 / 20:18)
 
 Inspected three completed user-owned Xcode result bundles. The corrected picker
 selection assertion and held-metrics native readiness predicate passed focused

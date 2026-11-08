@@ -8,11 +8,11 @@ let package = Package(
     products: [],
     targets: [
         .target(name: "CoordinatorNavigationDemo", path: ".",
-            exclude: ["App", "Features", "Core/Navigation", "Core/DependencyInjection", "Core/Session", "Core/Alerts/AlertPresentation.swift", "CoordinatorNavigationDemoTests", "CoordinatorNavigationDemoUITests", "CoordinatorNavigationDemo.xcodeproj", "docs", "README.md"],
-            sources: ["Domain", "Data", "Core/DeepLinks", "Core/Alerts/AppAlert.swift"]),
+            exclude: ["App", "Features", "Core/Navigation", "Core/DependencyInjection", "Core/Session", "Core/Alerts/AlertPresentation.swift", "Core/Alerts/SnackbarPresenter.swift", "CoordinatorNavigationDemoTests", "CoordinatorNavigationDemoUITests", "CoordinatorNavigationDemo.xcodeproj", "docs", "README.md"],
+            sources: ["Domain", "Data", "Core/DeepLinks", "Core/Alerts/AppAlert.swift", "Core/Alerts/ForegroundNoticeTimer.swift"]),
         .testTarget(name: "PortableCoreTests", dependencies: ["CoordinatorNavigationDemo"],
-            path: "CoordinatorNavigationDemoTests", exclude: ["ArchitectureTests.swift", "RouterLifecycleTests.swift", "NavigationReliabilityTests.swift", "QueuePolicyTests.swift", "LifecycleTimingTests.swift", "SimplificationTests.swift", "DiagnosticsIsolationTests.swift", "ErrorRecoveryTests.swift", "TestSupport"],
-            sources: ["DomainTests.swift", "IntentProcessorTests.swift", "AppAlertQueueTests.swift"])
+            path: "CoordinatorNavigationDemoTests", exclude: ["ArchitectureTests.swift", "RouterLifecycleTests.swift", "NavigationReliabilityTests.swift", "QueuePolicyTests.swift", "LifecycleTimingTests.swift", "SimplificationTests.swift", "DiagnosticsIsolationTests.swift", "ErrorRecoveryTests.swift", "TransientNoticeTests.swift", "TestSupport"],
+            sources: ["DomainTests.swift", "IntentProcessorTests.swift", "AppAlertQueueTests.swift", "NoticeTimerTests.swift"])
     ],
     swiftLanguageModes: [.v5]
 )

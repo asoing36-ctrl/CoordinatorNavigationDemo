@@ -51,6 +51,7 @@ import Combine
         demo.showAlert = { [weak self] style in
             self?.router.showAlert(.demo(style: style), completion: { _ in })
         }
+        demo.showNotice = { [weak self] request in self?.router.showAlert(request, completion: { _ in }) }
         demo.reset = { [weak self] authenticated in
             guard let self, !self.resetting else { return }
             self.resetTask = Task { [weak self] in await self?.reset(authenticated: authenticated) }
@@ -169,7 +170,7 @@ import Combine
                         if action == .retry { self.retry(transactionID: token) }
                         else { self.finishAuthenticatedRedeem(transactionID: token) }
                     }
-                    if admission == .capacityExceeded || admission == .invalidActions {
+                    if admission == .capacityExceeded || admission == .invalidActions || admission == .invalidConfiguration {
                         // Rejected requests own no callback. Preserve session/stack
                         // and release this intent rather than strand the pipeline.
                         self.reportCapacityExceeded()

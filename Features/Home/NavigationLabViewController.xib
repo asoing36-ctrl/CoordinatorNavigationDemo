@@ -17,6 +17,10 @@
                 <outlet property="presentSheetButton" destination="presentSheet" id="out-presentSheetButton" />
                 <outlet property="uikitAlertButton" destination="uikitAlert" id="out-uikitAlertButton" />
                 <outlet property="swiftUIAlertButton" destination="swiftUIAlert" id="out-swiftUIAlertButton" />
+                <outlet property="timedUIKitButton" destination="timedUIKit" id="out-timedUIKitButton" />
+                <outlet property="timedSwiftUIButton" destination="timedSwiftUI" id="out-timedSwiftUIButton" />
+                <outlet property="timedSnackbarButton" destination="timedSnackbar" id="out-timedSnackbarButton" />
+                <outlet property="persistentSnackbarButton" destination="persistentSnackbar" id="out-persistentSnackbarButton" />
             </connections>
         </placeholder>
         <placeholder placeholderIdentifier="IBFirstResponder" id="first" customClass="UIResponder" />
@@ -100,6 +104,46 @@
                                     <state key="normal" title="Show SwiftUI alert" />
                                     <connections>
                                         <action selector="swiftUIAlertTapped:" destination="owner" eventType="touchUpInside" id="swiftUIAlert-action" />
+                                    </connections>
+                                </button>
+                                <button opaque="NO" contentMode="scaleToFill" buttonType="system" translatesAutoresizingMaskIntoConstraints="NO" id="timedUIKit">
+                                    <rect key="frame" x="0" y="0" width="340" height="48" />
+                                    <constraints>
+                                        <constraint firstAttribute="height" constant="48" priority="999" id="timedUIKit-height" />
+                                    </constraints>
+                                    <state key="normal" title="Timed UIKit alert" />
+                                    <connections>
+                                        <action selector="timedUIKitTapped:" destination="owner" eventType="touchUpInside" id="timedUIKit-action" />
+                                    </connections>
+                                </button>
+                                <button opaque="NO" contentMode="scaleToFill" buttonType="system" translatesAutoresizingMaskIntoConstraints="NO" id="timedSwiftUI">
+                                    <rect key="frame" x="0" y="0" width="340" height="48" />
+                                    <constraints>
+                                        <constraint firstAttribute="height" constant="48" priority="999" id="timedSwiftUI-height" />
+                                    </constraints>
+                                    <state key="normal" title="Timed SwiftUI alert" />
+                                    <connections>
+                                        <action selector="timedSwiftUITapped:" destination="owner" eventType="touchUpInside" id="timedSwiftUI-action" />
+                                    </connections>
+                                </button>
+                                <button opaque="NO" contentMode="scaleToFill" buttonType="system" translatesAutoresizingMaskIntoConstraints="NO" id="timedSnackbar">
+                                    <rect key="frame" x="0" y="0" width="340" height="48" />
+                                    <constraints>
+                                        <constraint firstAttribute="height" constant="48" priority="999" id="timedSnackbar-height" />
+                                    </constraints>
+                                    <state key="normal" title="Timed snackbar" />
+                                    <connections>
+                                        <action selector="timedSnackbarTapped:" destination="owner" eventType="touchUpInside" id="timedSnackbar-action" />
+                                    </connections>
+                                </button>
+                                <button opaque="NO" contentMode="scaleToFill" buttonType="system" translatesAutoresizingMaskIntoConstraints="NO" id="persistentSnackbar">
+                                    <rect key="frame" x="0" y="0" width="340" height="48" />
+                                    <constraints>
+                                        <constraint firstAttribute="height" constant="48" priority="999" id="persistentSnackbar-height" />
+                                    </constraints>
+                                    <state key="normal" title="Persistent snackbar" />
+                                    <connections>
+                                        <action selector="persistentSnackbarTapped:" destination="owner" eventType="touchUpInside" id="persistentSnackbar-action" />
                                     </connections>
                                 </button>
                             </subviews>

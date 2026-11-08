@@ -1,5 +1,14 @@
 # Global alerts and URL delivery
 
+Timed and manual informational alerts/snackbars now extend this contract.
+[TimedNotices.md](TimedNotices.md) covers API examples, foreground duration,
+separate bounded channels, non-key banner ownership and reset/stop semantics.
+The user runs passed all 131 unit tests, then all 37 UI methods after the
+test-only recovery tap correction. These separate executions cover 168 declarations
+/ 268 cases; no single post-correction full-scheme run is claimed. Earlier AUD-04
+all-green results below remain baseline evidence. Expiry removes a notice without invoking user actions;
+Retry/Cancel alerts stay manual.
+
 AUD-04 now adds a full error-family/destination/style flow matrix, repeated recovery,
 attached-window presentation cleanup and six representative native button UI cases.
 **All 58 new unit/component cases and six new UI workflows passed** in the
@@ -20,7 +29,7 @@ The prior [lifecycle timing follow-up](plans/lifecycle-timing.md) passed all eig
 
 ## Request ownership
 
-`AppAlertRequest` carries a safe semantic key, renderer, text, actions and lifetime scope. `AppAlertQueue` rejects empty/repeated actions and non-OK global notices before activation. Active/pending duplicates coalesce by scope plus key. Typed AlertAdmission reports accepted, duplicate, invalidActions or capacityExceeded. Distinct accepted requests wait FIFO. Default capacity is 9 pending plus 1 active, with the final pending slot reserved for flow recovery; global notices can fill at most 8. Rejection/coalescing/cancellation owns no callback. User completion clears ownership before its at-most-once action callback.
+`AppAlertRequest` carries a safe semantic key, renderer, text, actions and lifetime scope. `AppAlertQueue` rejects empty/repeated actions and non-OK global notices before activation. Active/pending duplicates coalesce by scope plus key. Typed AlertAdmission reports accepted, duplicate, invalidActions, invalidConfiguration or capacityExceeded. Timed/manual policy is validated before ownership; see TimedNotices.md. Distinct accepted requests wait FIFO within their presentation channel. Default capacity is 9 pending plus 1 active, with the final pending slot reserved for flow recovery; global notices can fill at most 8. Rejection/coalescing/cancellation owns no callback. User completion clears ownership before its at-most-once action callback.
 
 SceneDelegate forwards activation. New presentation requires an active scene, attached window and stable visible presenter. Existing alerts remain owned when the scene resigns. The router yields after at most 4 ordinary navigation commands to an eligible waiting alert; authorized root replacement/cleanup has precedence. It never interrupts a running native transition.
 

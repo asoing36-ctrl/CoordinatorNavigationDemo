@@ -1,5 +1,65 @@
 # Test coverage and execution matrix — including alerts
 
+## Current corrected notice evidence — unit and UI suites passed separately
+
+The user's 21:14 run passed **131/131 unit declarations / 231 expanded cases**.
+The subsequent 21:46 UI-only rerun passed **37/37 methods**, including all four
+previously failed final recovery taps and all four new notice workflows. Combined
+coverage is **168 declarations / 268 cases** across these separate runs, with
+production/unit source unchanged between them. No single post-correction full
+run is claimed. The latest UI bundle has zero failures/skips/recorded runtime
+warnings on iPhone 17 / iOS 27.0 Simulator arm64.
+
+The interaction correction requires a fully visible content row and one real tap
+at its measured center; acceptance assertions/timeouts remain intact. Historical
+failure/source-only entries below are superseded by this passing UI evidence.
+Exact artifact names and scope limits are in [Verification.md](../Verification.md).
+Device/minimum-OS/accessibility, actual OS suspension and native-button/reset
+race gates remain open. Documentation/source/tests are included together for the
+user-requested commit and local merge to main.
+
+## Earlier timed notice runs — 2026-11-08, 21:12 / 21:13 / 21:14
+
+NoticeTimerTests passed **8 declarations / 10 cases** focused/full;
+TransientNoticeTests passed **8 declarations / 17 cases** focused/full. All 131
+unit declarations / 231 cases and all four new notice UI workflows passed. Full
+result: **164 passed / 4 failed of 168 declarations**, **264 passed / 4 failed of
+268 expanded runs**; no skips/recorded runtime warnings.
+
+Four existing recovery UI methods failed only at the final new-sheet assertion.
+Exported events prove all four final taps landed in status-bar chrome (y55–58),
+although `isHittable` was true. Business, credential/session and prior stack
+assertions were reached and passed. The test-only helper now requires a fully
+visible row and taps its measured center once; no assertion/timeout was removed
+or weakened. Standalone corrected UI source typechecking passed; native rerun is
+pending. See [exact methods, events and result bundles](../Verification.md).
+The initial implementation-only supplement below is historical; there is now
+native passing evidence for the feature, but current full green remains pending.
+
+## Initial timed/manual notice supplement — before user native execution
+
+Source adds 8 NoticeTimerTests declarations / 10 cases, 8 TransientNoticeTests
+declarations / 17 cases and 4 UI workflows. Total inventory: **168 declarations /
+expected 268 expanded runs**. The initial portable target passed 38 declarations;
+new native/UI cases have not run. Baseline all-green remains 148/237 below.
+
+| Requirement | New coverage |
+|---|---|
+| Start only when visible, foreground remaining time, pause at deadline, stale cancellation and owner release | NoticeTimerTests using a deterministic monotonic clock |
+| Informational-only timed/snackbar policy, manual mode, invalid durations/actions | NoticeTimerTests; real AppAlertQueue admission before ownership |
+| Both timed modal renderers, queue progress, exact feature modal/stack identity, no expiry action | TransientNoticeTests.timedAlertExpiresWithoutActionAndPreservesFeatureModal (4 cases) |
+| Scene pause/resume and manual acknowledgement versus ready expiry | TransientNoticeTests.inactiveTimeDoesNotExpireAnAlert and manualAcknowledgementWinsOverReadyExpiryExactlyOnce (4 cases) |
+| Timed/manual snackbar, non-key ownership, real touch hit testing and navigation/modal preservation | TransientNoticeTests.snackbarAllowsNavigationAndOnlyConsumesBannerTouches (2 cases) |
+| Both modal renderers pause/resume a snackbar's remaining duration | TransientNoticeTests.modalAlertPausesSnackbarThenResumesItsRemainingTime (2 cases) |
+| Bounded FIFO/dedupe and independent recovery capacity | TransientNoticeTests.boundedSnackbarQueueDeduplicatesAndDoesNotConsumeModalRecoveryCapacity (1 case) |
+| Reset/stop clear windows, pending notices and tasks without actions | TransientNoticeTests.resetOrStopCancelsActiveAndQueuedNotices (2 cases) |
+| Protected Phone survives expiry, global snackbar survives Skip/root replacement, ordinary Back restored | TransientNoticeTests.timedNoticePreservesProtectedPhoneAndSnackbarSurvivesCompletion (2 cases) |
+| Actual automatic disappearance/native controls on SwiftUI, XIB, sheet and full-screen; manual banner during Back/presentation | Four new NavigationUITests listed in [TimedNotices.md](../TimedNotices.md) |
+
+These are written assertions, not native passing evidence. User will run the
+[focused/full commands](../Verification.md). Broader device/OS/accessibility gates
+are unchanged.
+
 ## Current AUD-04 evidence — focused/full user runs passed, 2026-11-08
 
 The 20:00 diagnostics run passed **6 declarations / 8 cases**; the 20:02 UI run

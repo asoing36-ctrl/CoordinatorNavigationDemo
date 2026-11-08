@@ -14,11 +14,15 @@ import UIKit
     private var outcome: Outcome?
     private var sceneIsActive = true
     private var completion: ((AppAlertAction?) -> Void)?
+    private let clock: any NoticeClock
+    private var timer: ForegroundNoticeTimer?
+    private var visibilityTask: Task<Void, Never>?
 
-    init(request: AppAlertRequest, presenter: UIViewController,
+    init(request: AppAlertRequest, presenter: UIViewController, clock: (any NoticeClock)? = nil,
          completion: @escaping (AppAlertAction?) -> Void) {
         self.request = request
         self.presenter = presenter
+        self.clock = clock ?? SystemNoticeClock()
         self.completion = completion
     }
 
@@ -57,7 +61,7 @@ import UIKit
             guard let self, self.phase == .presenting else { return }
             self.phase = .visible
             if self.outcome != nil { self.scheduleDismissal() }
-            else { self.scheduleSwiftUIAppearance() }
+            else { self.scheduleSwiftUIAppearance(); self.prepareTimer() }
         }
         // A rejected UIKit presentation does not call completion. Do not strand the queue.
         if phase == .presenting, owned.presentingViewController == nil, !owned.isBeingPresented {
@@ -68,11 +72,16 @@ import UIKit
 
     func setSceneActive(_ active: Bool) {
         sceneIsActive = active
-        if active { scheduleSwiftUIAppearance() }
+        if active { scheduleSwiftUIAppearance(); prepareTimer() }
+        else {
+            visibilityTask?.cancel(); visibilityTask = nil
+            timer?.pause()
+        }
     }
 
     func cancel() {
         guard phase != .finished else { return }
+        cancelTimer()
         // Cancellation also suppresses an action already waiting for its dismissal completion.
         outcome = .cancelled
         if phase == .idle { finish() }
@@ -93,6 +102,7 @@ import UIKit
         guard phase == .visible || phase == .presenting,
               outcome == nil, request.actions.contains(action) else { return }
         outcome = .selected(action)
+        cancelTimer()
         scheduleDismissal()
     }
 
@@ -130,6 +140,7 @@ import UIKit
     private func finish() {
         guard phase != .finished else { return }
         phase = .finished
+        cancelTimer()
         let action: AppAlertAction?
         if case .selected(let selected)? = outcome { action = selected }
         else { action = nil }
@@ -139,6 +150,39 @@ import UIKit
         completion = nil
         callback?(action)
     }
+
+    private func prepareTimer() {
+        guard request.dismissAfter != nil, phase == .visible, outcome == nil, sceneIsActive else { return }
+        if timer != nil { timer?.resume(); return }
+        guard visibilityTask == nil else { return }
+        // SwiftUI's host completes before its nested native alert appears. Observe
+        // actual UIKit visibility, never spend display time while merely queued.
+        visibilityTask = Task { [weak self] in
+            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+            while !Task.isCancelled, ContinuousClock.now < deadline {
+                if self?.startTimerIfVisible() == true { return }
+                do { try await Task.sleep(for: .milliseconds(20)) } catch { return }
+            }
+            if !Task.isCancelled { self?.cancel() } // No business action on failed rendering.
+        }
+    }
+    private func startTimerIfVisible() -> Bool {
+        guard phase == .visible, outcome == nil, sceneIsActive, let controller,
+              let duration = request.dismissAfter else { return false }
+        let visible = Self.visibleController(from: controller)
+        guard visible is UIAlertController, visible.viewIfLoaded?.window != nil,
+              !visible.isBeingPresented, !visible.isBeingDismissed,
+              visible.transitionCoordinator == nil else { return false }
+        visibilityTask = nil
+        timer = ForegroundNoticeTimer(duration: duration, clock: clock) { [weak self] in self?.cancel() }
+        timer?.resume()
+        return true
+    }
+    private func cancelTimer() {
+        visibilityTask?.cancel(); visibilityTask = nil
+        timer?.cancel(); timer = nil
+    }
+    deinit { visibilityTask?.cancel() }
 
     static func visibleController(from controller: UIViewController) -> UIViewController {
         if let presented = controller.presentedViewController {

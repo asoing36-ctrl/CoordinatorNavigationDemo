@@ -11,12 +11,13 @@ import SwiftUI
 
     init(backend: MockBackend = MockBackend(), maximumPendingNavigation: Int = 32,
          maximumPendingAlerts: Int = 9, maximumNavigationBurst: Int = 4,
-         repository: (any CredentialRepository)? = nil, environment: (any MockEnvironmentManaging)? = nil) {
+         repository: (any CredentialRepository)? = nil, environment: (any MockEnvironmentManaging)? = nil,
+         noticeClock: (any NoticeClock)? = nil) {
         let navigation = PolicyNavigationController()
         navigation.navigationBar.prefersLargeTitles = false
         navigationController = navigation
         let router = NavigationRouter(navigationController: navigation, maximumPendingNavigation: maximumPendingNavigation,
-            maximumPendingAlerts: maximumPendingAlerts, maximumNavigationBurst: maximumNavigationBurst)
+            maximumPendingAlerts: maximumPendingAlerts, maximumNavigationBurst: maximumNavigationBurst, noticeClock: noticeClock)
         self.router = router
         let coordinator = AppCoordinator(router: router, backend: backend, repository: repository, environment: environment)
         self.coordinator = coordinator

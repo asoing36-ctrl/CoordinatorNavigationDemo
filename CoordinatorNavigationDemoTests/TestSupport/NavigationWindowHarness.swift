@@ -9,9 +9,9 @@ import UIKit
     private weak var previousWindow: UIWindow?
 
     private init(backend: MockBackend, maximumPendingNavigation: Int, maximumNavigationBurst: Int,
-                 repository: (any CredentialRepository)?, environment: (any MockEnvironmentManaging)?) throws {
+                 repository: (any CredentialRepository)?, environment: (any MockEnvironmentManaging)?, noticeClock: (any NoticeClock)?) throws {
         let composition = AppComposition(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
-            maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment)
+            maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment, noticeClock: noticeClock)
         self.composition = composition
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         previousWindow = scene.windows.first(where: \.isKeyWindow)
@@ -28,10 +28,10 @@ import UIKit
         window.makeKeyAndVisible()
     }
     static func make(backend: MockBackend, maximumPendingNavigation: Int, maximumNavigationBurst: Int,
-                     repository: (any CredentialRepository)?, environment: (any MockEnvironmentManaging)?,
+                     repository: (any CredentialRepository)?, environment: (any MockEnvironmentManaging)?, noticeClock: (any NoticeClock)?,
                      beforeClose: @MainActor () async -> Void) async throws -> NavigationWindowHarness {
         let harness = try NavigationWindowHarness(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
-            maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment)
+            maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment, noticeClock: noticeClock)
         do {
             try await waitForNavigationCondition { harness.appearance.didAppear }
             harness.composition.router.setSceneActive(true)
@@ -80,6 +80,7 @@ import UIKit
     maximumNavigationBurst: Int = 4,
     repository: (any CredentialRepository)? = nil,
     environment: (any MockEnvironmentManaging)? = nil,
+    noticeClock: (any NoticeClock)? = nil,
     beforeClose: @MainActor () async -> Void = {},
     _ body: @MainActor (NavigationWindowHarness) async throws -> Void
 ) async throws {
@@ -89,7 +90,7 @@ import UIKit
     defer { NavigationWindowAccess.release() }
     try Task.checkCancellation()
     let harness = try await NavigationWindowHarness.make(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
-        maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment, beforeClose: beforeClose)
+        maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment, noticeClock: noticeClock, beforeClose: beforeClose)
     do {
         try await body(harness)
         await harness.close(beforeClose: beforeClose)

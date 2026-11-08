@@ -29,6 +29,7 @@ struct NavigationDiagnostics: Equatable {
     @Published var status = "Ready"
     @Published var alertStyle: AppAlertStyle = .uikit
     var showAlert: ((AppAlertStyle) -> Void)?
+    var showNotice: ((AppAlertRequest) -> Void)?
     @Published var busy = false
     @Published private(set) var diagnostics = NavigationDiagnostics.empty
     @Published private(set) var loginCount = 0
@@ -111,7 +112,7 @@ struct DemoControls: View {
                 Text("UIKit").tag(AppAlertStyle.uikit)
                 Text("SwiftUI").tag(AppAlertStyle.swiftUI)
             }.pickerStyle(.segmented).accessibilityIdentifier("errorAlertStyle")
-            AlertDemoButtons(show: { model.showAlert?($0) })
+            AlertDemoButtons(show: { model.showAlert?($0) }, showNotice: { model.showNotice?($0) })
         }
         #if DEBUG
         Section("Diagnostics • observed state") {
@@ -156,8 +157,15 @@ struct DiagnosticsView: View {
 
 struct AlertDemoButtons: View {
     let show: (AppAlertStyle) -> Void
+    var showNotice: ((AppAlertRequest) -> Void)? = nil
     var body: some View {
         Button("Show UIKit alert") { show(.uikit) }.accessibilityIdentifier("showUIKitAlert")
         Button("Show SwiftUI alert") { show(.swiftUI) }.accessibilityIdentifier("showSwiftUIAlert")
+        if let showNotice {
+            Button("Timed UIKit alert") { showNotice(.timedDemo(style: .uikit)) }.accessibilityIdentifier("showTimedUIKitAlert")
+            Button("Timed SwiftUI alert") { showNotice(.timedDemo(style: .swiftUI)) }.accessibilityIdentifier("showTimedSwiftUIAlert")
+            Button("Timed snackbar") { showNotice(.snackbarDemo(timed: true)) }.accessibilityIdentifier("showTimedSnackbar")
+            Button("Persistent snackbar") { showNotice(.snackbarDemo(timed: false)) }.accessibilityIdentifier("showPersistentSnackbar")
+        }
     }
 }

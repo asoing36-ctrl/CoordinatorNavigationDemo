@@ -57,6 +57,8 @@ enum NavigationRejection: String, Equatable, Sendable {
     private var metadata: [ObjectIdentifier: Screen] = [:]
     private var queue: [Operation] = []
     private let alerts: AppAlertQueue
+    private let noticeClock: any NoticeClock
+    private lazy var snackbars = SnackbarPresenter(clock: noticeClock, sourceWindow: { [weak self] in self?.attachedWindow })
     private let maximumPendingNavigation: Int
     private let maximumNavigationBurst: Int
     private var navigationSinceAlert = 0
@@ -90,11 +92,12 @@ enum NavigationRejection: String, Equatable, Sendable {
         }
     }
     init(navigationController: PolicyNavigationController, maximumPendingNavigation: Int = 32,
-         maximumPendingAlerts: Int = 9, maximumNavigationBurst: Int = 4) {
+         maximumPendingAlerts: Int = 9, maximumNavigationBurst: Int = 4, noticeClock: (any NoticeClock)? = nil) {
         self.navigationController = navigationController
         self.maximumPendingNavigation = max(2, maximumPendingNavigation)
         self.maximumNavigationBurst = max(1, maximumNavigationBurst)
         alerts = AppAlertQueue(maximumPendingRequests: maximumPendingAlerts)
+        self.noticeClock = noticeClock ?? SystemNoticeClock()
         super.init()
         navigationController.delegate = self
         navigationController.permitsBack = { [weak self] in self?.backBlocked != true }
@@ -143,6 +146,7 @@ enum NavigationRejection: String, Equatable, Sendable {
     func present(_ controller: UIViewController, route: PresentationRoute) { enqueue(.present(controller, route)) }
     func dismiss() { enqueue(.dismiss) }
     @discardableResult func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void = { _ in }) -> AlertAdmission {
+        if request.presentation == .snackbar { return snackbars.show(request, completion: completion) }
         let admission = alerts.enqueue(request, completion: completion)
         drain()
         return admission
@@ -150,9 +154,11 @@ enum NavigationRejection: String, Equatable, Sendable {
     func setSceneActive(_ active: Bool) {
         alerts.sceneIsActive = active
         alertPresentation?.setSceneActive(active)
+        refreshSnackbars()
         if active { drain() }
     }
     func cancelAlerts() {
+        snackbars.cancelAll()
         alerts.cancelAll()
         alertPresentation?.cancel()
     }
@@ -189,14 +195,16 @@ enum NavigationRejection: String, Equatable, Sendable {
         guard !presenter.isBeingPresented, !presenter.isBeingDismissed,
               let request = alerts.beginNext() else { return false }
         navigationSinceAlert = 0
-        let presentation = AlertPresentation(request: request, presenter: presenter) { [weak self] result in
+        let presentation = AlertPresentation(request: request, presenter: presenter, clock: noticeClock) { [weak self] result in
             guard let self else { return }
             self.alertPresentation = nil
             if let result { self.alerts.complete(id: request.id, action: result) }
             else { self.alerts.cancel(id: request.id) }
             self.drain()
+            self.refreshSnackbars()
         }
         alertPresentation = presentation
+        refreshSnackbars()
         presentation.present()
         return alertPresentation != nil
     }
@@ -315,10 +323,16 @@ enum NavigationRejection: String, Equatable, Sendable {
             navigationController.topViewController?.navigationItem.hidesBackButton = backBlocked
             navigationController.interactivePopGestureRecognizer?.isEnabled = !backBlocked && navigationController.viewControllers.count > 1
         }
+        refreshSnackbars()
         let wasNotifying = notifyingObservers
         notifyingObservers = true
         defer { notifyingObservers = wasNotifying }
         onChange?()
+    }
+    private func refreshSnackbars() {
+        let visible = attachedWindow?.rootViewController.map { AlertPresentation.visibleController(from: $0) }
+        snackbars.update(sceneIsActive: alerts.sceneIsActive,
+            blocked: hasAlertPresentation || visible is UIAlertController)
     }
     private func completePresentation() { presentationTransitioning = false; synchronize(); drain() }
     private func deferNavigationDrain() {

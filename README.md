@@ -1,5 +1,11 @@
 # CoordinatorNavigationDemo
 
+Timed/manual UIKit and SwiftUI alerts plus nonblocking snackbars are implemented.
+**All 131 unit tests passed**, followed by **all 37 UI tests passing** after the
+recovery tap-helper correction. These are separate user-owned runs, covering 168
+declarations / 268 expanded cases; no single post-correction full run is claimed.
+See [usage](docs/TimedNotices.md) and [exact verification evidence](docs/Verification.md).
+
 AUD-04 passed focused and full user runs: **115 unit + 33 UI = 148 tests /
 237 expanded runs**, zero failures/skips/recorded runtime warnings on iPhone 17 /
 iOS 27.0 Simulator. See [verification evidence](docs/Verification.md) and the

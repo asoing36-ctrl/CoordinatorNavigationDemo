@@ -45,6 +45,10 @@
 		23761B46377B3E8994621061 /* CoordinatorNavigationDemoTests/SimplificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5CEE5A825AC949C0EB73675 /* CoordinatorNavigationDemoTests/SimplificationTests.swift */; };
 		98246A316CF248C28C77D5EB /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53C7594C812D05E9BFF7DA4 /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift */; };
 		FF9E338CA055D626037BD385 /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 679524441320736E12C20B5D /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift */; };
+		3A7B4760FA53F93CECA0A54B /* Core/Alerts/ForegroundNoticeTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C397088ECFA9E596D04803; };
+		FADEDC86F8D1B17E12BEC444 /* Core/Alerts/SnackbarPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B9BF4828104CEEB7A065D6; };
+		BE35FF2A09225B54CB566B66 /* CoordinatorNavigationDemoTests/NoticeTimerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13632E14A897CEA727AF2D65; };
+		85F9AB9F49B9F0066C752C56 /* CoordinatorNavigationDemoTests/TransientNoticeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD5F85CA8B9223031200186; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -108,6 +112,10 @@
 		C5CEE5A825AC949C0EB73675 /* CoordinatorNavigationDemoTests/SimplificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/SimplificationTests.swift; sourceTree = "<group>"; };
 		A53C7594C812D05E9BFF7DA4 /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift; sourceTree = "<group>"; };
 		679524441320736E12C20B5D /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift; sourceTree = "<group>"; };
+		16C397088ECFA9E596D04803 /* Core/Alerts/ForegroundNoticeTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Alerts/ForegroundNoticeTimer.swift; sourceTree = "<group>"; };
+		41B9BF4828104CEEB7A065D6 /* Core/Alerts/SnackbarPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Alerts/SnackbarPresenter.swift; sourceTree = "<group>"; };
+		13632E14A897CEA727AF2D65 /* CoordinatorNavigationDemoTests/NoticeTimerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/NoticeTimerTests.swift; sourceTree = "<group>"; };
+		6CD5F85CA8B9223031200186 /* CoordinatorNavigationDemoTests/TransientNoticeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TransientNoticeTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +152,8 @@
 				FA055E09B69436F26AE3C52C /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift */,
 				A53C7594C812D05E9BFF7DA4 /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift */,
 				679524441320736E12C20B5D /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift */,
+				6CD5F85CA8B9223031200186 /* CoordinatorNavigationDemoTests/TransientNoticeTests.swift */,
+				13632E14A897CEA727AF2D65 /* CoordinatorNavigationDemoTests/NoticeTimerTests.swift */,
 				C5CEE5A825AC949C0EB73675 /* CoordinatorNavigationDemoTests/SimplificationTests.swift */,
 				162C9BE0B27B54CE3EADA295 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift */,
 				19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */,
@@ -230,6 +240,8 @@
 				C6B3F423C485DCAD3CC3846C /* Core/DeepLinks/DeepLinks.swift */,
 				EDCE58A309FFEC3466BF2015 /* Core/Alerts/AppAlert.swift */,
 				82E7E4FF9361537DFC1529AA /* Core/Alerts/AlertPresentation.swift */,
+				41B9BF4828104CEEB7A065D6 /* Core/Alerts/SnackbarPresenter.swift */,
+				16C397088ECFA9E596D04803 /* Core/Alerts/ForegroundNoticeTimer.swift */,
 				E6F23675A8293D6AEE3335D9 /* Core/DependencyInjection/AppComposition.swift */,
 				38634226D6937D7D94668396 /* Core/Navigation/Coordinator.swift */,
 				9E307D47BA431DA113AD70E4 /* Core/Navigation/NavigationRouter.swift */,
@@ -378,6 +390,8 @@
 				2D2C1C71E7ECC8475CDEE89B /* Core/DeepLinks/DeepLinks.swift in Sources */,
 				7AEE4FDE5ADE36133C8ADE29 /* Core/Alerts/AppAlert.swift in Sources */,
 				8563B2D48909BE094742C227 /* Core/Alerts/AlertPresentation.swift in Sources */,
+				FADEDC86F8D1B17E12BEC444 /* Core/Alerts/SnackbarPresenter.swift in Sources */,
+				3A7B4760FA53F93CECA0A54B /* Core/Alerts/ForegroundNoticeTimer.swift in Sources */,
 				3BFBA08204259D521C817D8C /* Core/DependencyInjection/AppComposition.swift in Sources */,
 				D6317C6E3A2C668BC16BC9F3 /* Core/Navigation/Coordinator.swift in Sources */,
 				90D04189A044E27A8460F885 /* Core/Navigation/NavigationRouter.swift in Sources */,
@@ -413,6 +427,8 @@
 				DF85CF3EAC1B3E00978EAEE6 /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift in Sources */,
 				98246A316CF248C28C77D5EB /* CoordinatorNavigationDemoTests/DiagnosticsIsolationTests.swift in Sources */,
 				FF9E338CA055D626037BD385 /* CoordinatorNavigationDemoTests/ErrorRecoveryTests.swift in Sources */,
+				85F9AB9F49B9F0066C752C56 /* CoordinatorNavigationDemoTests/TransientNoticeTests.swift in Sources */,
+				BE35FF2A09225B54CB566B66 /* CoordinatorNavigationDemoTests/NoticeTimerTests.swift in Sources */,
 				23761B46377B3E8994621061 /* CoordinatorNavigationDemoTests/SimplificationTests.swift in Sources */,
 				5B08A4EB14309D12E4A88C50 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift in Sources */,
 				188CEB08B6CA28E34B52F975 /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift in Sources */,
