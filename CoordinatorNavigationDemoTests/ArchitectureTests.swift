@@ -153,6 +153,7 @@ import UIKit
     var onChange: (() -> Void)?
     var presentedRoute: PresentationRoute?
     var presentedController: UIViewController?
+    var lastAlertAction: (@MainActor (AppAlertAction) -> Void)?
     var routes: [Route] { screens.map(\.route) }
     var backBlocked: Bool { screens.last?.policy == .blocked }
     func push(_ controller: UIViewController, route: Route, policy: BackNavigationPolicy) {
@@ -168,7 +169,11 @@ import UIKit
         presentedController = controller; presentedRoute = route; onChange?()
     }
     func dismiss() { presentedController = nil; presentedRoute = nil; onChange?() }
-    @discardableResult func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void) -> AlertAdmission { alerts.enqueue(request, completion: completion) }
+    @discardableResult func showAlert(_ request: AppAlertRequest, completion: @escaping @MainActor (AppAlertAction) -> Void) -> AlertAdmission {
+        let result = alerts.enqueue(request, completion: completion)
+        if result == .accepted { lastAlertAction = completion }
+        return result
+    }
     func setSceneActive(_ active: Bool) { alerts.sceneIsActive = active }
     func cancelAlerts() { alerts.cancelAll() }
     func cancelPendingNavigation() {} // This synchronous spy never has waiting commands.

@@ -26,12 +26,13 @@ import UIKit
         connect(window: UIWindow(windowScene: scene), initialURLs: urls, authenticated: authenticated)
     }
     /// Explicit window ownership; the OS entry point above decodes connection options.
-    func connect(window: UIWindow, initialURLs: [URL], authenticated: Bool) {
+    @discardableResult func connect(window: UIWindow, initialURLs: [URL], authenticated: Bool,
+                                   composition suppliedComposition: AppComposition? = nil) -> Task<Void, Never> {
         startupTask?.cancel()
         self.composition?.coordinator.stop()
         starting = true
         startupIntents.removeAll(); startupInvalidNotice = false; startupCapacityNotice = false
-        let composition = AppComposition()
+        let composition = suppliedComposition ?? AppComposition()
         self.composition = composition
         window.rootViewController = composition.rootViewController
         self.window = window
@@ -40,7 +41,7 @@ import UIKit
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         #endif
-        startupTask = Task { @MainActor [weak self, weak composition] in
+        let task = Task { @MainActor [weak self, weak composition] in
             guard let composition else { return }
             await composition.start(initialURLs: initialURLs, authenticated: authenticated)
             guard !Task.isCancelled, let self, self.composition === composition else { return }
@@ -57,6 +58,8 @@ import UIKit
             self.deliverLaunchLink(arguments, coordinator: composition.coordinator)
             #endif
         }
+        startupTask = task
+        return task
     }
     #if DEBUG
     private func deliverLaunchLink(_ arguments: [String], coordinator: AppCoordinator) {

@@ -11,7 +11,8 @@ import SwiftUI
     private(set) var onboarding: OnboardingCoordinator?
     private(set) var home: HomeCoordinator?
     private let router: any NavigationRouting
-    private let backend: MockBackend
+    private let repository: any CredentialRepository
+    private let environment: any MockEnvironmentManaging
     private let useCase: RedeemCredentialUseCase
     private var operation: Task<Void, Never>?
     private var resetTask: Task<Void, Never>?
@@ -25,11 +26,15 @@ import SwiftUI
     private var started = false
     private var stopped = false
 
-    init(router: any NavigationRouting, backend: MockBackend, maximumPendingIntents: Int = 8) {
-        self.router = router; self.backend = backend
+    init(router: any NavigationRouting, backend: MockBackend, maximumPendingIntents: Int = 8,
+         repository: (any CredentialRepository)? = nil, environment: (any MockEnvironmentManaging)? = nil) {
+        self.router = router
+        let businessRepository = repository ?? backend
+        self.repository = businessRepository
+        self.environment = environment ?? backend
         deferredIntents = PendingIntentBuffer(maximumCount: maximumPendingIntents)
         processor = DeepLinkProcessor(maximumPendingIntents: maximumPendingIntents)
-        useCase = RedeemCredentialUseCase(repository: backend)
+        useCase = RedeemCredentialUseCase(repository: businessRepository)
         router.onChange = { [weak self] in self?.refreshDiagnostics() }
         processor.onChange = { [weak self] in self?.refreshDiagnostics() }
         processor.onIntent = { [weak self] intent in self?.handle(intent) }
@@ -120,7 +125,7 @@ import SwiftUI
                 try Task.checkCancellation()
                 guard let self, self.generation == token else { return }
                 self.session.apply(result)
-                self.demo.loginCount = await self.backend.metrics().loginCount
+                self.demo.loginCount = await self.environment.metrics().loginCount
                 guard self.generation == token, !Task.isCancelled else { return }
                 self.demo.status = result.authentication == .createdAccount ? "Account created" : (result.authentication == .loggedIn ? "Logged in" : "Credential added; session preserved")
                 if result.needsPhoneAssociation { self.beginOnboarding(result) }
@@ -151,7 +156,7 @@ import SwiftUI
     private func beginOnboarding(_ result: RedeemResult) {
         // Keep Redeem's hosting controller underneath the genuinely pushed XIB screen.
         release(redeem); redeem = nil
-        let coordinator = OnboardingCoordinator(router: router, repository: backend, session: result.session, authentication: result.authentication)
+        let coordinator = OnboardingCoordinator(router: router, repository: repository, session: result.session, authentication: result.authentication)
         onboarding = coordinator; retain(coordinator)
         let token = generation
         coordinator.onFinish = { [weak self] in
@@ -200,6 +205,7 @@ import SwiftUI
         let resetGeneration = generation
         demo.busy = true
         let oldOperation = operation
+        let oldOnboarding = onboarding
         operation?.cancel(); operation = nil
         for coordinator in children.values { coordinator.stop() }
         children.removeAll(); redeem = nil; onboarding = nil; home = nil
@@ -207,12 +213,14 @@ import SwiftUI
         // Cancellation is awaited before resetting the actor, preventing obsolete backend commits.
         await oldOperation?.value
         guard generation == resetGeneration, !stopped else { return }
-        await backend.reset()
+        await oldOnboarding?.waitForOperation()
+        guard generation == resetGeneration, !stopped else { return }
+        await environment.reset()
         guard generation == resetGeneration, !stopped else { return }
         if authenticated {
-            let restored = await backend.seedAuthenticatedSession()
+            let restored = await environment.seedAuthenticatedSession()
             guard generation == resetGeneration, !stopped else { return }
-            let credentials = await backend.ownedCredentials(accountID: restored.accountID)
+            let credentials = await environment.ownedCredentials(accountID: restored.accountID)
             guard generation == resetGeneration, !stopped else { return }
             session.restore(session: restored, credentials: credentials)
             installHome()

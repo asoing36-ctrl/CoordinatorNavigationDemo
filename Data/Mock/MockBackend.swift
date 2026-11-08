@@ -1,7 +1,15 @@
 import Foundation
 
+/// Mock administration is separate from credential business operations.
+protocol MockEnvironmentManaging: Sendable {
+    func reset() async
+    func seedAuthenticatedSession() async -> UserSession
+    func ownedCredentials(accountID: String) async -> [Credential]
+    func metrics() async -> BackendMetrics
+}
+
 /// Actor state is changed only after cancellation-aware delay. No awaits inside commits.
-actor MockBackend: CredentialRepository {
+actor MockBackend: CredentialRepository, MockEnvironmentManaging {
     private let delay: Duration
     private var accounts: [String: Account] = [:]
     private var credentials: [String: [Credential]] = [:]

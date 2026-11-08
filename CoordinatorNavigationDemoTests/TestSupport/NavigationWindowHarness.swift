@@ -8,9 +8,10 @@ import UIKit
     private let appearance = NavigationWindowAppearanceProbe()
     private weak var previousWindow: UIWindow?
 
-    private init(backend: MockBackend, maximumPendingNavigation: Int, maximumNavigationBurst: Int) throws {
+    private init(backend: MockBackend, maximumPendingNavigation: Int, maximumNavigationBurst: Int,
+                 repository: (any CredentialRepository)?, environment: (any MockEnvironmentManaging)?) throws {
         let composition = AppComposition(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
-            maximumNavigationBurst: maximumNavigationBurst)
+            maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment)
         self.composition = composition
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         previousWindow = scene.windows.first(where: \.isKeyWindow)
@@ -26,9 +27,11 @@ import UIKit
         appearance.didMove(toParent: root)
         window.makeKeyAndVisible()
     }
-    static func make(backend: MockBackend, maximumPendingNavigation: Int, maximumNavigationBurst: Int) async throws -> NavigationWindowHarness {
+    static func make(backend: MockBackend, maximumPendingNavigation: Int, maximumNavigationBurst: Int,
+                     repository: (any CredentialRepository)?, environment: (any MockEnvironmentManaging)?,
+                     beforeClose: @MainActor () async -> Void) async throws -> NavigationWindowHarness {
         let harness = try NavigationWindowHarness(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
-            maximumNavigationBurst: maximumNavigationBurst)
+            maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment)
         do {
             try await waitForNavigationCondition { harness.appearance.didAppear }
             harness.composition.router.setSceneActive(true)
@@ -37,12 +40,14 @@ import UIKit
             harness.appearance.removeFromParent()
             return harness
         } catch {
-            await harness.close()
+            await harness.close(beforeClose: beforeClose)
             throw error
         }
     }
-    func close() async {
+    func close(beforeClose: @MainActor () async -> Void) async {
         composition.coordinator.stop()
+        // Release test gates and join work even when construction/body assertions throw.
+        await beforeClose()
         // Do not destroy a window while the router still owns native alert cleanup.
         try? await waitForNavigationCondition { !self.composition.router.hasAlertPresentation &&
             self.composition.navigationController.transitionCoordinator == nil }
@@ -73,6 +78,9 @@ import UIKit
     backend: MockBackend = MockBackend(delay: .zero),
     maximumPendingNavigation: Int = 32,
     maximumNavigationBurst: Int = 4,
+    repository: (any CredentialRepository)? = nil,
+    environment: (any MockEnvironmentManaging)? = nil,
+    beforeClose: @MainActor () async -> Void = {},
     _ body: @MainActor (NavigationWindowHarness) async throws -> Void
 ) async throws {
     // Suite-level serialization does not serialize two different suites. Share one
@@ -81,12 +89,12 @@ import UIKit
     defer { NavigationWindowAccess.release() }
     try Task.checkCancellation()
     let harness = try await NavigationWindowHarness.make(backend: backend, maximumPendingNavigation: maximumPendingNavigation,
-        maximumNavigationBurst: maximumNavigationBurst)
+        maximumNavigationBurst: maximumNavigationBurst, repository: repository, environment: environment, beforeClose: beforeClose)
     do {
         try await body(harness)
-        await harness.close()
+        await harness.close(beforeClose: beforeClose)
     } catch {
-        await harness.close()
+        await harness.close(beforeClose: beforeClose)
         throw error
     }
 }
@@ -109,28 +117,46 @@ import UIKit
 @MainActor final class SceneDelegateWindowHarness {
     let scene: UIWindowScene
     let delegate = SceneDelegate()
+    private(set) var startupTask: Task<Void, Never>?
+    private var startupTasks: [Task<Void, Never>] = []
     private var window: SceneAppearanceWindow?
     private weak var previousWindow: UIWindow?
 
-    private init() throws {
+    private init(composition: AppComposition?, authenticated: Bool, initialURLs: [URL]) throws {
         scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         previousWindow = scene.windows.first(where: \.isKeyWindow)
         let window = SceneAppearanceWindow(windowScene: scene)
         self.window = window
-        delegate.connect(window: window, initialURLs: [], authenticated: false)
+        let task = delegate.connect(window: window, initialURLs: initialURLs, authenticated: authenticated, composition: composition)
+        startupTask = task
+        startupTasks.append(task)
     }
-    static func make() async throws -> SceneDelegateWindowHarness {
-        let harness = try SceneDelegateWindowHarness()
+    static func make(composition: AppComposition?, authenticated: Bool, initialURLs: [URL],
+                     beforeClose: @MainActor () async -> Void) async throws -> SceneDelegateWindowHarness {
+        let harness = try SceneDelegateWindowHarness(composition: composition, authenticated: authenticated, initialURLs: initialURLs)
         do {
-            try await waitForNavigationCondition { harness.window?.appearance.didAppear == true }
-            harness.delegate.sceneDidBecomeActive(harness.scene)
-            if let appearance = harness.window?.appearance {
-                appearance.willMove(toParent: nil)
-                appearance.view.removeFromSuperview()
-                appearance.removeFromParent()
-            }
+            try await harness.finishAppearance()
             return harness
-        } catch { await harness.close(); throw error }
+        } catch { await harness.close(beforeClose: beforeClose); throw error }
+    }
+    private func finishAppearance() async throws {
+        try await waitForNavigationCondition { self.window?.appearance.didAppear == true }
+        delegate.sceneDidBecomeActive(scene)
+        if let appearance = window?.appearance {
+            appearance.willMove(toParent: nil)
+            appearance.view.removeFromSuperview()
+            appearance.removeFromParent()
+        }
+    }
+    func reconnect(composition: AppComposition, authenticated: Bool) async throws {
+        delegate.sceneDidDisconnect(scene)
+        await releaseWindow()
+        let window = SceneAppearanceWindow(windowScene: scene)
+        self.window = window
+        let task = delegate.connect(window: window, initialURLs: [], authenticated: authenticated, composition: composition)
+        startupTask = task
+        startupTasks.append(task)
+        try await finishAppearance()
     }
     func navigationController() throws -> PolicyNavigationController {
         try #require(window?.rootViewController?.children.compactMap { $0 as? PolicyNavigationController }.first)
@@ -155,8 +181,13 @@ import UIKit
         window.rootViewController = nil
         self.window = nil
     }
-    func close() async {
+    func close(beforeClose: @MainActor () async -> Void) async {
         delegate.sceneDidDisconnect(scene)
+        await beforeClose()
+        // Reconnect intentionally does not wait for obsolete startup. Final cleanup
+        // joins every retained handle before destroying the current window/lease.
+        for task in startupTasks { await task.value }
+        startupTasks.removeAll(); startupTask = nil
         await releaseWindow()
     }
 }
@@ -176,14 +207,18 @@ import UIKit
 }
 
 @MainActor func withSceneDelegateWindow(
+    composition: AppComposition? = nil,
+    authenticated: Bool = false,
+    initialURLs: [URL] = [],
+    beforeClose: @MainActor () async -> Void = {},
     _ body: @MainActor (SceneDelegateWindowHarness) async throws -> Void
 ) async throws {
     await NavigationWindowAccess.acquire()
     defer { NavigationWindowAccess.release() }
     try Task.checkCancellation()
-    let harness = try await SceneDelegateWindowHarness.make()
-    do { try await body(harness); await harness.close() }
-    catch { await harness.close(); throw error }
+    let harness = try await SceneDelegateWindowHarness.make(composition: composition, authenticated: authenticated, initialURLs: initialURLs, beforeClose: beforeClose)
+    do { try await body(harness); await harness.close(beforeClose: beforeClose) }
+    catch { await harness.close(beforeClose: beforeClose); throw error }
 }
 
 @MainActor func waitForNavigationCondition(

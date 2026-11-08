@@ -4,6 +4,8 @@ This document describes the reusable navigation layer, independently of the demo
 
 The bounded-queue/alert-lifetime revision passed the user's focused and full Simulator runs: **118 declarations / 136 expanded runs**, no failures/skips/recorded runtime warnings. The implementation and verification record are committed together after baseline `a9b7788`; see the [policy plan](plans/queue-and-alert-policy.md) and [verification evidence](Verification.md) for scope and remaining release gates.
 
+The working-tree [lifecycle timing follow-up](plans/lifecycle-timing.md) passed all eight declarations / 16 expanded runs. The latest full run passed **99 unit + 27 UI = 126 declarations / 152 expanded runs**, zero failures/skips/recorded runtime warnings. Queue lifetime-boundary assertions and the native-grabber sheet gesture both passed; the separate UI run passed 27/27. See [Verification.md](Verification.md). No router command, capacity or Back policy changes are part of either test-only follow-up.
+
 ## Authority and ownership
 
 UIKit's viewControllers is the authoritative push stack. Route and Back-policy metadata describes those exact controller identities; it is retained until transitions finish because a cancelled pop can restore a temporarily removed controller. Feature-modal metadata is a separate presentation dimension, not another push stack.
@@ -67,13 +69,15 @@ The native RouterLifecycleTests use the real stack in an attached window and pub
 
 The UI suite adds a real edge-swipe check after leaving the protected flow, on both SwiftUI and XIB screens. Existing mixed-framework and deep-link tests remain intact. Shared native-window fixtures serialize access across suites and await actual appearance/cleanup.
 
+LifecycleTimingTests holds credential/phone/startup operations at explicit suspension gates. It checks that reset joins cancelled business work before clearing the environment, stop cannot install obsolete destinations, old alert actions cannot affect a new transaction, global notices retain their lifetime across phone completion, and old scene startup cannot drain a new buffer. Scene connection accepts an owned composition and returns the startup Task; the system callback still decodes its original connection options. All eight declarations passed in the user's focused/full runs. The action-selection component test calls the same typed boundary as both renderer adapters before queued dismissal; it does not synthesize native auto-dismissal or prove OS gesture delivery.
+
 ## Production release gates
 
-The user's latest full rerun passed **91 unit + 27 UI declarations = 118**, with **136 expanded runs**, no failures/skips and zero recorded runtime warnings. Focused alert/intent/policy suites also passed, including both protected-flow saturation cases, fairness, scoped root changes and recovery ownership. The agent inspected existing results without building or running tests. See [Verification.md](Verification.md) for bundle paths and remaining native-fixture console diagnostics. A Simulator pass alone does not establish flawless navigation for a large production population.
+The user's latest full run passed **99 unit + 27 UI = 126 declarations / 152 expanded runs**, including every lifecycle/queue case and both completed/cancelled sheet UI cases. The separate UI run also passed all 27 methods. No failures/skips or recorded runtime warnings. The agent inspected existing results without building or running tests. See [Verification.md](Verification.md) for paths, earlier failures and native-fixture console diagnostics. These results do not establish flawless navigation for a large production population.
 
 Before integration/release, require:
 
-- Keep targeted native transition and full unit/UI execution as a regression gate with animations enabled and zero assertion failures. The current policy revision passed on iPhone 17 / iOS 27.0 Simulator. Continue investigating the documented native-fixture console diagnostics.
+- Keep targeted native transition and full unit/UI execution as a regression gate with animations enabled and zero assertion failures. The current lifecycle revision passed on iPhone 17 / iOS 27.0 Simulator. Continue investigating the documented native-fixture console diagnostics.
 - The minimum supported iOS 17 runtime and current supported iOS versions; representative physical iPhones/iPads, both size classes, rotation and accessibility settings. The existing verified baseline covered iPhone 17 / iOS 27.0 Simulator only.
 - Repeated real completed/cancelled edge-back and sheet gestures, rapid alternating requests, foreground/background changes and scene disconnect during transitions. The controlled native tests complement real gestures; they do not replace device verification.
 - Validate the tested queue, reservation, overflow feedback, alert lifetime and arbitration defaults against the consuming application's protected flows and workloads. Route identity/restoration, capacity tuning and measured memory/latency still require application-specific decisions.

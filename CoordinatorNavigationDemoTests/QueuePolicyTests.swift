@@ -61,20 +61,27 @@ import UIKit
             router.push(UIViewController(), route: .secondary, policy: .allowed)
             try await waitForNavigationCondition { probe.heldPush.started }
             router.pop()
-            router.push(UIViewController(), route: .details, policy: .allowed)
+            weak var waitingDetails: UIViewController?
             weak var duplicate: UIViewController?
             weak var overflow: UIViewController?
-            do {
+            // Bound the construction/autorelease lifetime independently of queue
+            // ownership. A lexical do scope alone does not establish that boundary.
+            autoreleasepool {
+                let waiting = UIViewController(); waitingDetails = waiting
+                router.push(waiting, route: .details, policy: .allowed)
                 let next = UIViewController(); duplicate = next
                 router.push(next, route: .details, policy: .allowed)
                 let extra = UIViewController(); overflow = extra
                 router.push(extra, route: .lab, policy: .allowed)
             }
+            // Positive control: accepted work is retained across the same boundary.
+            autoreleasepool { #expect(waitingDetails != nil) }
             #expect(duplicate == nil)
             #expect(overflow == nil)
             #expect(rejected == [.queueFull])
             let root = UIViewController()
             router.setRoot(root, route: .home)
+            #expect(waitingDetails == nil)
             router.push(UIViewController(), route: .secondary, policy: .allowed)
             probe.heldPush.finish()
             try await waitForNavigationCondition { router.routes == [.home, .secondary] && navigation.transitionCoordinator == nil }

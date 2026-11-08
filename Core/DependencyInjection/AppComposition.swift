@@ -10,14 +10,15 @@ import SwiftUI
     private var started = false
 
     init(backend: MockBackend = MockBackend(), maximumPendingNavigation: Int = 32,
-         maximumPendingAlerts: Int = 9, maximumNavigationBurst: Int = 4) {
+         maximumPendingAlerts: Int = 9, maximumNavigationBurst: Int = 4,
+         repository: (any CredentialRepository)? = nil, environment: (any MockEnvironmentManaging)? = nil) {
         let navigation = PolicyNavigationController()
         navigation.navigationBar.prefersLargeTitles = false
         navigationController = navigation
         let router = NavigationRouter(navigationController: navigation, maximumPendingNavigation: maximumPendingNavigation,
             maximumPendingAlerts: maximumPendingAlerts, maximumNavigationBurst: maximumNavigationBurst)
         self.router = router
-        let coordinator = AppCoordinator(router: router, backend: backend)
+        let coordinator = AppCoordinator(router: router, backend: backend, repository: repository, environment: environment)
         self.coordinator = coordinator
         router.onRejectedNavigation = { [weak coordinator] reason in
             if reason == .queueFull { coordinator?.reportCapacityExceeded() }

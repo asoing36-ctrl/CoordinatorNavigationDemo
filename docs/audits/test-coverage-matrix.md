@@ -2,6 +2,25 @@
 
 > **Historical coverage snapshot.** References to "current", source lines, test counts, failures and missing coverage below describe the audit baseline before subsequent alert/navigation hardening. Use [Verification.md](../Verification.md) for latest execution evidence, the [implementation status](implementation-status.md) for added work, and the [strict navigation review](navigation-strict-review-2026-11-07.md) for remaining validation gaps. Original evidence below remains unchanged.
 
+## Lifecycle timing supplement — 2026-11-08, focused/full user runs passed
+
+Baseline `981a91b` passed 91 unit + 27 UI declarations / 136 expanded runs. Current source adds eight native declarations, for 99 unit + 27 UI = 126. **All eight supplement declarations / 16 expanded runs passed**. The newest 10:42 full run passed **99/99 unit + 27/27 UI / 152 expanded runs**, zero failures/skips/recorded runtime warnings; separate 10:32 UI run passed 27/27. Queue lifetime and completed native-grabber sheet follow-ups passed. Shared gates release explicit stages; they do not infer completion from elapsed time. Full prior matrices below remain historical.
+
+| Timing requirement | New LifecycleTimingTests declaration | Assertion / boundary |
+|---|---|---|
+| Reset after create/login/grant returns despite cancellation | resetAfterAHeldBusinessResultCannotApplyObsoleteSessionOrNavigation | Three stages; fresh Welcome, no session/child/intent or obsolete counters after joined reset |
+| Stop with an already granted credential | stopIgnoresANonCooperativeLateRedeemResult | Controller identities/session unchanged; server effect exists without client navigation revival |
+| Reset while phone API ignores cancellation | resetJoinsCancelledPhoneWorkBeforeResettingTheEnvironment | Phone return precedes environment reset; clean seeded session/counters and weak child release |
+| Stop while phone API is pending | stoppedPhoneCompletionCannotInstallHomeAndChildIsReleasedAfterJoining | Real server completion joined; no Home/session mutation; weak child released |
+| Obsolete recovery actions versus a newer flow | oldAlertActionsCannotCancelOrRetryANewHeldTransaction | Actual captured old callback cannot cancel/retry the new held intent or alter stack/queued intent |
+| Selection and cancellation before queued dismissal | selectedActionCompletesOnceOrIsCancelledBeforeDismissal | Both renderers × selection-only/selection-then-cancel, real attached alert, typed selection boundary, exactly one matching completion and exact underlying modal preserved; no synthesized native tap |
+| Phone completion across global notice/activity state | phoneCompletionPreservesVisibleOrBufferedGlobalNotice | Both renderers × active/inactive; after queued work/native transitions settle, exact visible alert ownership blocks Home replacement; queued notice reanchors after Home and protected Back resets; administrative cleanup is not acknowledgment |
+| Old startup returning after reconnect | obsoleteSeedCompletionCannotDrainTheReconnectedScenesStartupBuffer | Two held seeds; release old startup before new, deliver only the new staged intent, reject obsolete session/URL application; separate delegate callback, not OS scene destruction |
+
+Execution status and the source review/fix record are in [Verification.md](../Verification.md) and [the timing plan](../plans/lifecycle-timing.md). Async failure cleanup releases gates and joins retained reset/phone/startup work before releasing the native window lease. Native UI action/reset overlap, OS-driven scene destruction, actual sheet-pan cancellation, minimum-iOS/device and profiling evidence remain separate gates.
+
+---
+
 Audit date: 2026-11-07. Baseline is the current working tree, including the pre-audit local sheet-identifier fix. No test or production file was changed during this audit.
 
 ## Inventory and execution status — current alert-aware baseline

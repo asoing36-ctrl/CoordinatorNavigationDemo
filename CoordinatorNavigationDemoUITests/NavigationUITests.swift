@@ -147,10 +147,37 @@ import XCTest
         findAndTap("presentSwiftUI")
         XCTAssertTrue(app.buttons["dismissSwiftUIModal"].waitForExistence(timeout: 5))
         let sheet = app.buttons["dismissSwiftUIModal"]
-        // Drag from the header, outside the sheet's scrolling credential list.
-        let start = app.staticTexts["presentedSwiftUITitle"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        start.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
-        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["modalStack"].label, "Underlying stack: home")
+        // Use UIKit's native drag target. The title belongs to SwiftUI content;
+        // dragging from its left-aligned center to screen center was diagonal.
+        let grabbers = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Grabber"))
+        let grabber = grabbers.firstMatch
+        XCTAssertTrue(grabber.waitForExistence(timeout: 5), "The native sheet grabber must be accessible")
+        XCTAssertEqual(grabbers.count, 1, "The gesture must target the one presented sheet")
+        XCTAssertTrue(grabber.isHittable)
+        let start = grabber.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let distance = app.frame.maxY - grabber.frame.midY - 32
+        XCTAssertGreaterThan(distance, 0)
+        let end = start.withOffset(CGVector(dx: 0, dy: distance))
+        let originalStart = start.screenPoint
+        let originalEnd = end.screenPoint
+        start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .fast, thenHoldForDuration: 0)
+        guard sheet.waitForNonExistence(timeout: 5) else {
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "Sheet after native grabber drag"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            let state = XCTAttachment(string: "Start: \(originalStart), end: \(originalEnd), app: \(app.frame), grabber exists: \(grabber.exists), sheet exists: \(sheet.exists)")
+            state.name = "Sheet gesture geometry"
+            state.lifetime = .keepAlways
+            add(state)
+            XCTFail("One vertical native-grabber drag must dismiss the sheet before another presentation")
+            return
+        }
+        let home = app.navigationBars["Home"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND hittable == true"), object: home)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed,
+                       "Home must be interactive after the native sheet dismisses")
         findAndTap("presentUIKit")
         XCTAssertTrue(app.buttons["dismissUIKitModal"].waitForExistence(timeout: 5))
         app.buttons["dismissUIKitModal"].tap()

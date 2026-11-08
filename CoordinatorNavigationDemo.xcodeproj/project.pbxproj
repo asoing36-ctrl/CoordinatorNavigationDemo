@@ -40,6 +40,8 @@
 		D39EC005F79AD1D7C2AEEFA1 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B2BC7F3851701E00744B15 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift */; };
 		AEBF17667E71BBEC289FBBED /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A715E5DA6923BC7FB6ACBA /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift */; };
 		6BB25B67789D126712F01FED /* CoordinatorNavigationDemoTests/QueuePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3865ED2D485E89242C54C0C /* CoordinatorNavigationDemoTests/QueuePolicyTests.swift */; };
+		DF85CF3EAC1B3E00978EAEE6 /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA055E09B69436F26AE3C52C /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift */; };
+		5B08A4EB14309D12E4A88C50 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 162C9BE0B27B54CE3EADA295 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -98,6 +100,8 @@
 		62B2BC7F3851701E00744B15 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift; sourceTree = "<group>"; };
 		59A715E5DA6923BC7FB6ACBA /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift; sourceTree = "<group>"; };
 		A3865ED2D485E89242C54C0C /* CoordinatorNavigationDemoTests/QueuePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/QueuePolicyTests.swift; sourceTree = "<group>"; };
+		FA055E09B69436F26AE3C52C /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/LifecycleTimingTests.swift; sourceTree = "<group>"; };
+		162C9BE0B27B54CE3EADA295 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -131,6 +135,8 @@
 				62B2BC7F3851701E00744B15 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift */,
 				59A715E5DA6923BC7FB6ACBA /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift */,
 				A3865ED2D485E89242C54C0C /* CoordinatorNavigationDemoTests/QueuePolicyTests.swift */,
+				FA055E09B69436F26AE3C52C /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift */,
+				162C9BE0B27B54CE3EADA295 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift */,
 				19FCC15D04F3792A083A962F /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift */,
 				1AB5217B35F655254707CD54 /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift */,
 				41BED8167AE43BCDC763766F /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift */,
@@ -395,6 +401,8 @@
 				D39EC005F79AD1D7C2AEEFA1 /* CoordinatorNavigationDemoTests/NavigationReliabilityTests.swift in Sources */,
 				AEBF17667E71BBEC289FBBED /* CoordinatorNavigationDemoTests/TestSupport/InteractivePresentationProbe.swift in Sources */,
 				6BB25B67789D126712F01FED /* CoordinatorNavigationDemoTests/QueuePolicyTests.swift in Sources */,
+				DF85CF3EAC1B3E00978EAEE6 /* CoordinatorNavigationDemoTests/LifecycleTimingTests.swift in Sources */,
+				5B08A4EB14309D12E4A88C50 /* CoordinatorNavigationDemoTests/TestSupport/LifecycleGates.swift in Sources */,
 				188CEB08B6CA28E34B52F975 /* CoordinatorNavigationDemoTests/RouterLifecycleTests.swift in Sources */,
 				1526DCC1EB662F2F612B3C6D /* CoordinatorNavigationDemoTests/TestSupport/NavigationWindowHarness.swift in Sources */,
 				DCB753F55AAE26CEC54768E1 /* CoordinatorNavigationDemoTests/TestSupport/NavigationTransitionProbe.swift in Sources */,

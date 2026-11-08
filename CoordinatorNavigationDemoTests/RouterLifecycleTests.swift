@@ -259,10 +259,14 @@ import UIKit
             let first = UIViewController()
             router.push(first, route: .details, policy: .allowed)
             weak var lastDuplicate: UIViewController?
-            for _ in 0..<100 {
-                let duplicate = UIViewController()
-                lastDuplicate = duplicate
-                router.push(duplicate, route: .details, policy: .allowed)
+            // As in the saturation test, drain UIKit construction temporaries
+            // before asserting that the router released redundant candidates.
+            autoreleasepool {
+                for _ in 0..<100 {
+                    let duplicate = UIViewController()
+                    lastDuplicate = duplicate
+                    router.push(duplicate, route: .details, policy: .allowed)
+                }
             }
             #expect(lastDuplicate == nil)
             probe.heldPush.finish()

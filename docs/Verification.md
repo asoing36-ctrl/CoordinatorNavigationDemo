@@ -1,6 +1,95 @@
 # Verification record
 
-## Current queue / alert policy — user Simulator runs passed (2026-11-07, 22:29 / 22:30)
+## Current lifecycle revision — user UI/full Simulator runs passed (2026-11-08, 10:32 / 10:42)
+
+The user built and ran the final lifecycle revision and test follow-ups. **99 native unit + 27 UI = 126 declarations passed**, with **152 expanded runs**, zero failures/skips and zero recorded runtime warnings. The separate UI run also passed **27/27 methods**. Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The portable subset remains 30 declarations and ran through the native target; no separate package run is claimed.
+
+| User-owned bundle | Actual result |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.08_10-32-53-+0200.xcresult` | UI suite: **27/27 passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_10-42-30-+0200.xcresult` | Full suite: **99/99 unit + 27/27 UI passed**, **152 expanded runs passed** |
+| Failures / skipped / recorded runtime warnings | **0 / 0 / 0** in both bundles |
+
+Both bundles are under `~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`. The full test tree confirms all eight lifecycle declarations, queue retention/release positive control, duplicate burst, completed sheet swipe and cancelled-sheet smoke case passed. The sheet activity trace confirms one native `Sheet Grabber` drag with zero horizontal offset, 419.3-point vertical travel and 750-points/second velocity, followed by interactive Home and a new UIKit modal presentation/dismissal. No retry or Done fallback was introduced.
+
+This validates the selected lifecycle timings: noncooperative late create/login/redeem responses, phone cancellation/reset joining and weak child release, obsolete alert actions, positive selection/selection-then-cancel in both renderers, visible/inactive global notices across phone completion and obsolete seeding versus reconnected startup. The scene fixture invokes a separate delegate; it does not destroy the host's OS scene. The renderer action-boundary case does not synthesize a native button tap; controlled cancellation is not proof that the short sheet smoke drag engaged an interactive transition.
+
+Full-run console inspection: native unit **16** locked-focus / **465** handler-drop entries; UI **0** of either. There are zero matching unsupported-hosting, publication-during-update, unbalanced-appearance or unfinished-navigation diagnostics in those test consoles. The remaining native-fixture diagnostics have no established cause; the green run does not prove harmlessness or absence of leaks. Exported inspection data: `/private/tmp/coordinator-lifecycle-1042-diagnostics`.
+
+The agent read/exported completed results only and ran no compiler, build, tests, Simulator or app. Only documentation changed after result inspection. The verified implementation, tests and evidence are committed together at the user's request. Swift 5 / iOS 17 settings remain unchanged. Actual OS-driven scene destruction, repeated native gesture engagement/cancellation, minimum-iOS/physical-device, Release, consuming-app capacity policy and long-session profiling remain separate gates. See [the lifecycle ledger](plans/lifecycle-timing.md) and [audit status](audits/implementation-status.md).
+
+## Earlier queue follow-up passed; native sheet swipe UI failure (2026-11-08, 10:11 / 10:12)
+
+The user reran the ownership revision. The focused QueuePolicyTests run passed **8/8 declarations / 10 expanded runs**. The full run passed **all 99 unit declarations**, including the queue retention/release positive control, duplicate-burst check and all eight lifecycle declarations. UI result: **26 passed / 1 failed of 27**. Total: **125 passed / 1 failed of 126 declarations**, **151 passed / 1 failed of 152 expanded runs**, zero skips/recorded runtime warnings. Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The preceding queue weak-release failure is resolved on this destination.
+
+| User-owned bundle | Actual result |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.08_10-11-07-+0200.xcresult` | QueuePolicyTests: **8/8 declarations / 10 expanded runs passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_10-12-03-+0200.xcresult` | Full suite: **99/99 unit passed, 26/27 UI passed**; one sheet swipe UI failure |
+
+Both bundles are in the DerivedData test directory listed below. The sole failure is `NavigationUITests.testSheetSwipeDismissalAllowsPresentingAgain()`, original `NavigationUITests.swift:153`: Done remained present after the drag, so the test never attempted its next presentation. The separate cancelled-sheet smoke test and all native router/presentation cases passed.
+
+Failure artifacts: exported activity tree, synthesized event and final accessibility hierarchy in `/private/tmp/coordinator-sheet-1012-attachments`. The 402×874 screen shows the sheet still at its medium detent, native `Sheet Grabber` at approximately `{153, 411, 96, 23}`, and Done still visible. The recorded drag starts on the left-aligned title at `(104.66, 443.03)` and ends at `(201, 856.52)`, default 500 points/second. This is a diagonal content-origin gesture. These artifacts prove it did not dismiss; they do not distinguish a non-engaged pan from a cancelled pan or establish a production router defect. The recording was exported, but offline frame extraction was unavailable; no visual-motion conclusion is claimed.
+
+**Unexecuted UI-test-only follow-up:** wait for the native grabber to exist and be hittable, make one vertical fast drag from its center to above the window's bottom edge, keep the five-second sheet disappearance assertion, require interactive Home, then present/dismiss the UIKit modal. Failure retains a screenshot and safe geometry attachment. No retry gesture, Done fallback, timeout increase or production navigation change. Native-grabber accessibility was verified in this runtime's artifact; minimum-iOS/device behavior remains a separate gate. Static source/config checks do not prove this gesture works.
+
+Rerun the completed and cancelled swipe UI cases, then the full scheme. For a terminal run, replace DEVICE-UDID and choose a fresh result path:
+
+```sh
+xcodebuild test -project CoordinatorNavigationDemo.xcodeproj \
+  -scheme CoordinatorNavigationDemo \
+  -destination 'platform=iOS Simulator,id=DEVICE-UDID' \
+  -parallel-testing-enabled NO \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testSheetSwipeDismissalAllowsPresentingAgain \
+  -only-testing:CoordinatorNavigationDemoUITests/NavigationUITests/testCancelledSheetSwipeStillAllowsDismissalAndNextPresentation \
+  -resultBundlePath /private/tmp/CoordinatorSheetGesture.xcresult \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Full-run console: unit **16** locked-focus / **465** handler-drop entries; UI **0** of either; zero matching unsupported-hosting, publication-during-update, unbalanced-appearance or unfinished-navigation diagnostics. Cause remains unestablished. The agent only inspected/exported existing results and edited this test/documentation; it ran no compiler, build, tests, Simulator or app. Current gesture changes are uncommitted and unexecuted.
+
+## Earlier lifecycle timing run — passed; full suite had one queue lifetime failure (2026-11-08, 09:49 / 09:51)
+
+The user built and ran the working-tree lifecycle revision after baseline `981a91b`. **All 8 LifecycleTimingTests declarations / 16 expanded runs passed**, in both the focused and full runs. The full suite has **125 passed / 1 failed of 126 declarations** (**151 passed / 1 failed of 152 expanded runs**): 98/99 unit declarations and all 27 UI methods passed. No skips or recorded runtime warnings. Destination: iPhone 17 / iOS 27.0 Simulator, arm64. The portable subset remains 30 declarations; shared tests ran natively, with no separate package run. The agent inspected completed artifacts only; it ran no compiler, build, tests, Simulator or app.
+
+| User-owned bundle | Actual result |
+|---|---|
+| `Test-CoordinatorNavigationDemo-2026.11.08_09-49-47-+0200.xcresult` | LifecycleTimingTests: **8/8 declarations, 16/16 expanded runs passed** |
+| `Test-CoordinatorNavigationDemo-2026.11.08_09-51-05-+0200.xcresult` | Full suite: **125 passed / 1 failed**, 126 declarations; **151 passed / 1 failed**, 152 expanded runs |
+
+Both bundles are under `~/Library/Developer/Xcode/DerivedData/CoordinatorNavigationDemo-cakzsvptpysegvdklzvrxgmnhvhy/Logs/Test/`. The full test tree confirms every lifecycle parameter case passed, including both renderer/activity variants, positive selection/cancellation, all held business stages and reconnect during held startup.
+
+The single failure is `QueuePolicyTests.fullNavigationQueueRejectsNewestAndStillAdmitsFlowReplacement()`, `QueuePolicyTests.swift:73`: the weak duplicate controller was still non-nil immediately after a lexical do scope. Overflow rejection and the subsequent `[home, secondary]` flow replacement assertions passed; the test completed rather than timing out. The duplicate enqueue path returns before storing or passing that controller to UIKit. This supports a test lifetime-boundary problem; the artifact does not identify the exact runtime retainer or prove a production retain cycle.
+
+**Unexecuted test-only follow-up:** construct queued/duplicate/overflow candidates inside an explicit autoreleasepool, then retain the immediate weak-release assertions. Add a positive control that accepted work survives that boundary and is released by flow replacement. The matching duplicate-burst lifetime test now uses the same explicit construction boundary. No navigation production code, timeout, capacity, rejection or stack assertion was relaxed. These edits came after the failed full run and **have not been built or rerun**. First rerun the two methods below, then the complete scheme:
+
+- `QueuePolicyTests.fullNavigationQueueRejectsNewestAndStillAdmitsFlowReplacement()`
+- `RouterLifecycleTests.duplicatePushBurstReleasesRedundantWaitingControllers()`
+
+Exported full-run unit console: **16** locked-focus diagnostics and **462** handler-drop entries; UI console: **0** of either. There were **0** matching unsupported-hosting, publication-during-update, unbalanced-appearance or unfinished-navigation diagnostics in those test consoles. Their diagnostic cause remains unestablished; neither harmlessness nor a production leak is inferred. Direct `get log --type console` was unavailable; inspection used `xcresulttool export diagnostics` into `/private/tmp/coordinator-lifecycle-0951-diagnostics`.
+
+The new cases hold real mock operations at explicit stages, including noncooperative responses after cancellation. They cover reset after create/login/grant, stopped late grant, reset joining phone work before environment clearing, stopped phone completion and weak child release, an obsolete captured coordinator alert callback against a new held transaction, selection then cancellation in both renderers, visible/inactive global notices across phone completion, and an obsolete held seed completing before a reconnected scene drains its new startup buffer.
+
+Necessary source changes add constructor injection for credential operations and mock administration, retain/join cancelled onboarding work at reset, expose the renderers' existing typed selection boundary internally, and allow scene connection to consume a constructed composition and return its startup handle. Default composition, system scene callbacks, Swift 5 and iOS 17 remain unchanged. Static plist/project lint, XML parsing and resource/source membership checks passed; these checks do not prove compilation or runtime behavior. See [the plan and review ledger](plans/lifecycle-timing.md).
+
+The final read-only review identified two test-reliability issues before these user runs. The fix waits for queued work and settled native transitions before asserting exact global-notice ownership, and joins retained operations on throwing cleanup paths before releasing the native window lease. Reconnected scene fixtures retain both startup handles. Both renderers exercise a successful selection-only control alongside selection-then-cancel. All eight lifecycle declarations then passed in the user's focused/full runs; the later autoreleasepool follow-up above remains unexecuted.
+
+In Xcode, rerun the two queue lifetime methods above, then Product → Test for the complete scheme. For a local terminal run, replace DEVICE-UDID and choose a result path that does not already exist:
+
+```sh
+xcodebuild test -project CoordinatorNavigationDemo.xcodeproj \
+  -scheme CoordinatorNavigationDemo \
+  -destination 'platform=iOS Simulator,id=DEVICE-UDID' \
+  -parallel-testing-enabled NO \
+  -only-testing:CoordinatorNavigationDemoTests/QueuePolicyTests/fullNavigationQueueRejectsNewestAndStillAdmitsFlowReplacement \
+  -only-testing:CoordinatorNavigationDemoTests/RouterLifecycleTests/duplicatePushBurstReleasesRedundantWaitingControllers \
+  -resultBundlePath /private/tmp/CoordinatorQueueLifetime.xcresult \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Remove both `-only-testing` options and use a fresh result path for the full unit/UI run. These are handoff commands, not executed evidence. Native component selection is not a synthesized button tap, direct scene callback reconnection is not OS scene destruction, and administrative alert cancellation is not a user acknowledgment. Existing UI tests supply native action/gesture coverage. Minimum-iOS, physical-device, real OS teardown, long-session profiling and native-fixture console investigation remain open.
+
+## Last verified queue / alert policy — user Simulator runs passed (2026-11-07, 22:29 / 22:30)
 
 The user built and ran the AUD-06/AUD-16 revision after baseline `a9b7788`. The full run passed **91 native unit + 27 UI = 118 declarations**, including **8 QueuePolicyTests**, with **136 expanded runs**, zero failures/skips and zero recorded runtime warnings. The portable subset is now **30 declarations**; its shared tests executed natively, but the separate macOS package command was not rerun.
 

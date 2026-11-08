@@ -44,7 +44,9 @@ import Combine
     }
     func skip() { guard !finished, !model.loading else { return }; complete() }
     private func complete() { guard !finished else { return }; finished = true; let callback = onFinish; onFinish = nil; callback?() }
-    func stop() { finished = true; task?.cancel(); task = nil; onFinish = nil }
+    // Retain the cancelled operation so administrative reset can join it before
+    // clearing the mock environment. The task captures this coordinator weakly.
+    func stop() { finished = true; task?.cancel(); onFinish = nil }
     func waitForOperation() async { await task?.value }
     deinit { task?.cancel() }
 }

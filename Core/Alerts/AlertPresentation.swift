@@ -36,12 +36,12 @@ import UIKit
             let alert = UIAlertController(title: request.title, message: request.message, preferredStyle: .alert)
             for action in request.actions {
                 alert.addAction(UIAlertAction(title: action.title, style: action == .cancel ? .cancel : .default) { [weak self] _ in
-                    self?.selected(action)
+                    self?.select(action)
                 })
             }
             owned = alert
         case .swiftUI:
-            let state = SwiftUIAlertState(request: request) { [weak self] action in self?.selected(action) }
+            let state = SwiftUIAlertState(request: request) { [weak self] action in self?.select(action) }
             swiftUIState = state
             let host = UIHostingController(rootView: SwiftUIAlertContent(state: state))
             host.modalPresentationStyle = .overFullScreen
@@ -88,7 +88,8 @@ import UIKit
         }
     }
 
-    private func selected(_ action: AppAlertAction) {
+    /// Typed selection boundary shared by native renderer adapters.
+    func select(_ action: AppAlertAction) {
         guard phase == .visible || phase == .presenting,
               outcome == nil, request.actions.contains(action) else { return }
         outcome = .selected(action)
